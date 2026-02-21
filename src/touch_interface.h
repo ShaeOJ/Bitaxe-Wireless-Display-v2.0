@@ -1,8 +1,10 @@
 #pragma once
 /**
- * Unified touch interface for ESP32-2432S024
- * Supports both XPT2046 (resistive, SPI) and CST820 (capacitive, I2C)
- * Selected via build flags: TOUCH_RESISTIVE or TOUCH_CAPACITIVE
+ * Unified touch interface for CYD boards
+ * Supports:
+ *   - XPT2046  (resistive, SPI)  — CYD 2.4" — build flag: TOUCH_RESISTIVE
+ *   - CST820   (capacitive, I2C) — CYD 2.4" — build flag: TOUCH_CAPACITIVE
+ *   - GT911    (capacitive, I2C) — CYD 3.5" — build flag: TOUCH_GT911
  */
 
 #include <Arduino.h>
@@ -18,25 +20,16 @@ struct TouchPoint {
 
 #include <TFT_eSPI.h>
 
-// TFT_eSPI handles XPT2046 on the shared HSPI bus internally
-// when TOUCH_CS is defined in build_flags.
-// We just need a reference to the tft object from main.cpp.
 extern TFT_eSPI tft;
 
 // Calibration data for landscape rotation 1 (320x240)
-// Obtained from TFT_eSPI calibrateTouch() on real hardware
 static uint16_t calData[5] = {642, 2916, 525, 2911, 0};
 
 class TouchInterface {
 public:
     void begin() {
         tft.setTouch(calData);
-        Serial.println("TOUCH: TFT_eSPI built-in XPT2046 initialized");
-        Serial.printf("TOUCH: TOUCH_CS=%d\n", TOUCH_CS);
-        // Quick raw read test
-        uint16_t tx, ty;
-        bool hit = tft.getTouch(&tx, &ty, 20);
-        Serial.printf("TOUCH: initial probe hit=%d x=%d y=%d\n", hit, tx, ty);
+        Serial.println("TOUCH: XPT2046 resistive initialized");
     }
 
     TouchPoint read() {
@@ -65,6 +58,7 @@ class TouchInterface {
 public:
     void begin() {
         bbct.init(TOUCH_SDA_PIN, TOUCH_SCL_PIN, TOUCH_RST_PIN, TOUCH_INT_PIN);
+        Serial.println("TOUCH: CST820 capacitive initialized");
     }
 
     TouchPoint read() {
@@ -86,3 +80,37 @@ public:
 };
 
 #endif // TOUCH_CAPACITIVE
+
+// ===== GT911 Capacitive Touch (via TAMC_GT911) =====
+#ifdef TOUCH_GT911
+
+#include <Wire.h>
+#include <TAMC_GT911.h>
+
+static TAMC_GT911 gt911(TOUCH_SDA_PIN, TOUCH_SCL_PIN, TOUCH_INT_PIN, TOUCH_RST_PIN, 480, 320);
+
+class TouchInterface {
+public:
+    void begin() {
+        Wire.begin(TOUCH_SDA_PIN, TOUCH_SCL_PIN);
+        delay(100);
+        gt911.begin();
+        gt911.setRotation(ROTATION_LEFT);
+        Serial.println("TOUCH: GT911 capacitive initialized");
+    }
+
+    TouchPoint read() {
+        TouchPoint tp = {0, 0, false};
+        gt911.read();
+        if (gt911.isTouched) {
+            tp.x = gt911.points[0].x;
+            tp.y = gt911.points[0].y;
+            tp.x = constrain(tp.x, 0, SCR_W - 1);
+            tp.y = constrain(tp.y, 0, SCR_H - 1);
+            tp.pressed = true;
+        }
+        return tp;
+    }
+};
+
+#endif // TOUCH_GT911

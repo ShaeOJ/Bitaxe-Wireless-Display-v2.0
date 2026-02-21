@@ -65,22 +65,28 @@ A **steampunk-themed multi-device BitAxe monitor** built for the ESP32 Cheap Yel
 ## `> REQUIRED_HARDWARE.INV`
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  VAULT-TEC REQUISITION FORM — REQUIRED COMPONENTS        │
-├──────────────────────────────────────────────────────────┤
-│                                                          │
-│  ITEM                          QTY    STATUS             │
-│  ─────────────────────────     ───    ──────             │
-│  ESP32-2432S024 (CYD 2.4")    1      MANDATORY          │
-│  ├─ ILI9341 320x240 TFT LCD                             │
-│  ├─ Capacitive (CST820) OR                               │
-│  └─ Resistive (XPT2046) touch                            │
-│                                                          │
-│  BitAxe Miner(s)              1-8    AT LEAST ONE        │
-│  USB-C Cable                  1      FOR POWER/FLASH     │
-│  WiFi Network                 1      2.4 GHz             │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│  VAULT-TEC REQUISITION FORM — REQUIRED COMPONENTS             │
+├───────────────────────────────────────────────────────────────┤
+│                                                               │
+│  DISPLAY (pick one)              QTY    STATUS                │
+│  ───────────────────             ───    ──────                │
+│  ESP32-2432S024 (CYD 2.4")      1      OPTION A              │
+│  ├─ ILI9341 320x240 TFT LCD                                  │
+│  ├─ Capacitive (CST820) OR                                    │
+│  └─ Resistive (XPT2046) touch                                 │
+│                                                               │
+│  ESP32-3248S035 (CYD 3.5")      1      OPTION B              │
+│  ├─ ST7796 480x320 TFT LCD                                   │
+│  └─ Capacitive (GT911) touch                                  │
+│                                                               │
+│  OTHER                           QTY    STATUS                │
+│  ─────                           ───    ──────                │
+│  BitAxe Miner(s)                 1-8    AT LEAST ONE          │
+│  USB-C Cable                     1      FOR POWER/FLASH       │
+│  WiFi Network                    1      2.4 GHz               │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -100,21 +106,25 @@ cd Bitaxe-Wireless-Display-v2.0
 
 ### Step 2 — Select Your Build Variant
 
-| Environment | Touch Type | Driver | Command |
-|---|---|---|---|
-| `cyd24c` | Capacitive | CST820 (I2C) | `pio run -e cyd24c` |
-| `cyd24r` | Resistive | XPT2046 (SPI) | `pio run -e cyd24r` |
+| Environment | Board | Touch Type | Driver | Command |
+|---|---|---|---|---|
+| `cyd24c` | CYD 2.4" | Capacitive | CST820 (I2C) | `pio run -e cyd24c` |
+| `cyd24r` | CYD 2.4" | Resistive | XPT2046 (SPI) | `pio run -e cyd24r` |
+| `cyd35c` | CYD 3.5" | Capacitive | GT911 (I2C) | `pio run -e cyd35c` |
 
-> **Overseer's Note:** Most CYD 2.4" boards ship with **capacitive** touch. Check your board before flashing.
+> **Overseer's Note:** Most CYD boards ship with **capacitive** touch. The 3.5" board is always capacitive (GT911). Check your 2.4" board before flashing.
 
 ### Step 3 — Flash the Firmware
 
 ```bash
-# Capacitive touch (recommended)
+# CYD 2.4" Capacitive touch (recommended)
 pio run -e cyd24c -t upload
 
-# Resistive touch
+# CYD 2.4" Resistive touch
 pio run -e cyd24r -t upload
+
+# CYD 3.5" Capacitive touch
+pio run -e cyd35c -t upload
 ```
 
 ### Step 4 — Configure Your Vault
@@ -177,8 +187,9 @@ After a successful build, you'll see:
 Your flashable file is at:
 
 ```
-.pio/build/cyd24c/firmware_merged.bin    (capacitive touch)
-.pio/build/cyd24r/firmware_merged.bin    (resistive touch)
+.pio/build/cyd24c/firmware_merged.bin    (2.4" capacitive touch)
+.pio/build/cyd24r/firmware_merged.bin    (2.4" resistive touch)
+.pio/build/cyd35c/firmware_merged.bin    (3.5" capacitive touch)
 ```
 
 #### Step 2 — Understand What's Inside
@@ -385,7 +396,8 @@ SHARE ACCEPTED      Green (flash 200ms)     New share found!
 | [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) | 2.5.43 | Display driver & graphics rendering |
 | [ArduinoJson](https://github.com/bblanchon/ArduinoJson) | 6.21.5 | JSON parsing for API responses |
 | [WiFiManager](https://github.com/tzapu/WiFiManager) | Latest | Web-based WiFi configuration portal |
-| [bb_captouch](https://github.com/bitbank2/bb_captouch) | Latest | CST820 capacitive touch driver |
+| [bb_captouch](https://github.com/bitbank2/bb_captouch) | Latest | CST820 capacitive touch driver (2.4") |
+| [TAMC_GT911](https://github.com/tamctec/gt911-arduino) | Latest | GT911 capacitive touch driver (3.5") |
 
 ---
 
@@ -410,11 +422,11 @@ MEMPOOL.SPACE (Internet — HTTPS)
 
 ```
 Bitaxe-Wireless-Display-v2.0/
-├── platformio.ini           # Build config (two environments)
+├── platformio.ini           # Build config (3 environments: cyd24c, cyd24r, cyd35c)
 ├── merge_firmware.py        # Post-build script — creates merged .bin
 ├── src/
-│   ├── main.cpp             # Application firmware (~1,840 lines)
-│   └── touch_interface.h    # Touch driver abstraction layer
+│   ├── main.cpp             # Application firmware (auto-scales UI to screen size)
+│   └── touch_interface.h    # Touch driver abstraction (XPT2046/CST820/GT911)
 ├── .gitignore
 └── README.md                # You are here, Vault Dweller.
 ```
