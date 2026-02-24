@@ -444,7 +444,7 @@ void drawStatusDot(int x, int y, int status) {
 }
 
 void drawNavBar(int screenIndex, int totalScreens) {
-    int y = SY(226);
+    int y = SY(218);
     int dotSpacing = SX(10);
     int totalWidth = (totalScreens - 1) * dotSpacing;
     int startX = SCR_W / 2 - totalWidth / 2;
@@ -716,38 +716,38 @@ void drawMainUI() {
     float totalHashTH = totalHash / 1000.0;
     float efficiency = (totalHashTH > 0) ? (totalPower / (totalHashTH * 1000.0)) : 0;
 
-    int gaugeR = SS(28);
-    int gauger = SS(22);
+    int gaugeR = SS(26);
+    int gauger = SS(20);
 
     // 3 Arc Gauges
     char buf[16];
     if (totalHash >= 1000) {
         snprintf(buf, sizeof(buf), "%.2f", totalHashTH);
-        drawArcGauge(SX(53), SY(62), gaugeR, gauger, totalHashTH, 0, 10.0,
+        drawArcGauge(SX(53), SY(54), gaugeR, gauger, totalHashTH, 0, 10.0,
                      "HASHRATE", buf, "TH/s", CRT_BRIGHT);
     } else {
         snprintf(buf, sizeof(buf), "%.0f", totalHash);
-        drawArcGauge(SX(53), SY(62), gaugeR, gauger, totalHash, 0, 5000,
+        drawArcGauge(SX(53), SY(54), gaugeR, gauger, totalHash, 0, 5000,
                      "HASHRATE", buf, "GH/s", CRT_BRIGHT);
     }
 
     snprintf(buf, sizeof(buf), "%.0f", totalPower);
-    drawArcGauge(SCR_W / 2, SY(62), gaugeR, gauger, totalPower, 0, 500,
+    drawArcGauge(SCR_W / 2, SY(54), gaugeR, gauger, totalPower, 0, 500,
                  "POWER", buf, "W", CRT_BRIGHT);
 
     snprintf(buf, sizeof(buf), "%.1f", efficiency);
-    drawArcGauge(SCR_W - SX(53), SY(62), gaugeR, gauger, efficiency, 0, 30,
+    drawArcGauge(SCR_W - SX(53), SY(54), gaugeR, gauger, efficiency, 0, 30,
                  "EFF", buf, "J/TH", CRT_BRIGHT);
 
     // Devices panel
     int panelW = (SCR_W - SX(24)) / 3;
-    int panelY = SY(100);
-    int panelH = SY(62);
+    int panelY = SY(98);
+    int panelH = SY(66);
     drawPanel(SX(8), panelY, panelW, panelH, "DEVICES");
-    drawIconWorker(SX(14), SY(114), CRT_BRIGHT);
+    drawIconWorker(SX(14), SY(112), CRT_BRIGHT);
     tft.setTextColor(CRT_WHITE);
     tft.setTextSize(2);
-    tft.setCursor(SX(42), SY(116));
+    tft.setCursor(SX(42), SY(114));
     tft.printf("%d/%d", validCount, deviceCount);
     tft.setTextColor(CRT_DIM);
     tft.setTextSize(1);
@@ -757,13 +757,13 @@ void drawMainUI() {
     // Shares panel
     int panel2X = SX(8) + panelW + SX(4);
     drawPanel(panel2X, panelY, panelW, panelH, "SHARES");
-    drawIconCheck(panel2X + SX(6), SY(114), CRT_BRIGHT);
+    drawIconCheck(panel2X + SX(6), SY(112), CRT_BRIGHT);
     int totalShares = getTotalSharesAccepted();
     char sharesBuf[16];
     formatShares(sharesBuf, sizeof(sharesBuf), totalShares);
     tft.setTextColor(CRT_WHITE);
     tft.setTextSize(1);
-    tft.setCursor(panel2X + SX(34), SY(118));
+    tft.setCursor(panel2X + SX(34), SY(116));
     tft.print(sharesBuf);
     tft.setTextColor(CRT_DIM);
     tft.setTextSize(1);
@@ -779,7 +779,7 @@ void drawMainUI() {
     formatDiff(diffBuf, sizeof(diffBuf), maxDiff);
     tft.setTextColor(CRT_WHITE);
     tft.setTextSize(1);
-    tft.setCursor(panel3X + SX(6), SY(118));
+    tft.setCursor(panel3X + SX(6), SY(116));
     tft.print(diffBuf);
     tft.setTextColor(CRT_DIM);
     tft.setTextSize(1);
@@ -787,7 +787,7 @@ void drawMainUI() {
     tft.print("session");
 
     // Status bar
-    int statusY = SY(170);
+    int statusY = SY(168);
     int statusH = SY(22);
     drawPanel(SX(8), statusY, SCR_W - SX(16), statusH);
     int dotStatus = (validCount > 0) ? 0 : 2;
@@ -832,65 +832,65 @@ void updateDisplay() {
     float efficiency = (totalHashTH > 0) ? (totalPower / (totalHashTH * 1000.0)) : 0;
 
     char buf[16];
-    int gaugeR = SS(28);
-    int gauger = SS(22);
-    int gaugeClear = SS(20);
+    int gaugeR = SS(26);
+    int gauger = SS(20);
+    int gaugeClear = SS(18);
 
     // Clear gauge centers
-    tft.fillCircle(SX(53), SY(62), gaugeClear, CRT_BG);
-    tft.fillCircle(SCR_W / 2, SY(62), gaugeClear, CRT_BG);
-    tft.fillCircle(SCR_W - SX(53), SY(62), gaugeClear, CRT_BG);
+    tft.fillCircle(SX(53), SY(54), gaugeClear, CRT_BG);
+    tft.fillCircle(SCR_W / 2, SY(54), gaugeClear, CRT_BG);
+    tft.fillCircle(SCR_W - SX(53), SY(54), gaugeClear, CRT_BG);
 
     if (totalHash >= 1000) {
         snprintf(buf, sizeof(buf), "%.2f", totalHashTH);
-        drawArcGauge(SX(53), SY(62), gaugeR, gauger, totalHashTH, 0, 10.0,
+        drawArcGauge(SX(53), SY(54), gaugeR, gauger, totalHashTH, 0, 10.0,
                      "HASHRATE", buf, "TH/s", CRT_BRIGHT);
     } else {
         snprintf(buf, sizeof(buf), "%.0f", totalHash);
-        drawArcGauge(SX(53), SY(62), gaugeR, gauger, totalHash, 0, 5000,
+        drawArcGauge(SX(53), SY(54), gaugeR, gauger, totalHash, 0, 5000,
                      "HASHRATE", buf, "GH/s", CRT_BRIGHT);
     }
 
     snprintf(buf, sizeof(buf), "%.0f", totalPower);
-    drawArcGauge(SCR_W / 2, SY(62), gaugeR, gauger, totalPower, 0, 500,
+    drawArcGauge(SCR_W / 2, SY(54), gaugeR, gauger, totalPower, 0, 500,
                  "POWER", buf, "W", CRT_BRIGHT);
 
     snprintf(buf, sizeof(buf), "%.1f", efficiency);
-    drawArcGauge(SCR_W - SX(53), SY(62), gaugeR, gauger, efficiency, 0, 30,
+    drawArcGauge(SCR_W - SX(53), SY(54), gaugeR, gauger, efficiency, 0, 30,
                  "EFF", buf, "J/TH", CRT_BRIGHT);
 
     // Update devices count
-    tft.fillRect(SX(40), SY(112), SX(60), SY(20), PANEL_FILL);
+    tft.fillRect(SX(40), SY(110), SX(60), SY(20), PANEL_FILL);
     tft.setTextColor(CRT_WHITE);
     tft.setTextSize(2);
-    tft.setCursor(SX(42), SY(116));
+    tft.setCursor(SX(42), SY(114));
     tft.printf("%d/%d", validCount, deviceCount);
 
     // Update shares
     int panelW = (SCR_W - SX(24)) / 3;
     int panel2X = SX(8) + panelW + SX(4);
-    tft.fillRect(panel2X + SX(34), SY(114), SX(60), SY(28), PANEL_FILL);
+    tft.fillRect(panel2X + SX(34), SY(112), SX(60), SY(28), PANEL_FILL);
     int totalShares = getTotalSharesAccepted();
     char sharesBuf[16];
     formatShares(sharesBuf, sizeof(sharesBuf), totalShares);
     tft.setTextColor(CRT_WHITE);
     tft.setTextSize(1);
-    tft.setCursor(panel2X + SX(34), SY(118));
+    tft.setCursor(panel2X + SX(34), SY(116));
     tft.print(sharesBuf);
 
     // Update best diff
     int panel3X = panel2X + panelW + SX(4);
-    tft.fillRect(panel3X + SX(4), SY(114), SX(86), SY(28), PANEL_FILL);
+    tft.fillRect(panel3X + SX(4), SY(112), SX(86), SY(28), PANEL_FILL);
     double maxDiff = getMaxBestSessionDiff();
     char diffBuf[16];
     formatDiff(diffBuf, sizeof(diffBuf), maxDiff);
     tft.setTextColor(CRT_WHITE);
     tft.setTextSize(1);
-    tft.setCursor(panel3X + SX(6), SY(118));
+    tft.setCursor(panel3X + SX(6), SY(116));
     tft.print(diffBuf);
 
     // Update status bar
-    int statusY = SY(170);
+    int statusY = SY(168);
     int statusH = SY(22);
     tft.fillRect(SX(28), statusY + SY(4), SCR_W - SX(40), SY(14), PANEL_FILL);
     int dotStatus = (validCount > 0) ? 0 : 2;
@@ -1182,12 +1182,6 @@ void drawDeviceScreen(int devIndex) {
     }
     drawScreenFrame(title);
 
-    // Page indicator
-    tft.setTextColor(CRT_DIM);
-    tft.setTextSize(1);
-    tft.setCursor(SX(278), SY(12));
-    tft.printf("[%d/%d]", devIndex + 1, deviceCount);
-
     if (!dev.valid) {
         drawGlowText(SX(60), SY(80), "DEVICE OFFLINE", 1, CRT_RED);
         tft.setTextColor(CRT_DIM);
@@ -1198,16 +1192,8 @@ void drawDeviceScreen(int devIndex) {
         return;
     }
 
-    // Device model subtitle
-    if (dev.deviceModel.length() > 0) {
-        tft.setTextColor(CRT_DIM);
-        tft.setTextSize(1);
-        tft.setCursor(SX(8), SY(12));
-        tft.print(dev.deviceModel);
-    }
-
-    int gaugeR = SS(28);
-    int gauger = SS(22);
+    int gaugeR = SS(26);
+    int gauger = SS(20);
 
     // Hashrate arc gauge
     char hashBuf[16];
@@ -1219,25 +1205,25 @@ void drawDeviceScreen(int devIndex) {
         snprintf(hashBuf, sizeof(hashBuf), "%.0f", dev.hashRate);
         hashUnit = "GH/s";
     }
-    drawArcGauge(SCR_W / 4, SY(60), gaugeR, gauger, dev.hashRate, 0, 1000,
+    drawArcGauge(SCR_W / 4, SY(52), gaugeR, gauger, dev.hashRate, 0, 1000,
                  "HASHRATE", hashBuf, hashUnit, CRT_BRIGHT);
 
     // Temperature arc gauge
     char tempBuf[16];
     snprintf(tempBuf, sizeof(tempBuf), "%.1f", dev.temperature);
-    drawArcGauge(SCR_W * 3 / 4, SY(60), gaugeR, gauger, dev.temperature, 0, 80,
+    drawArcGauge(SCR_W * 3 / 4, SY(52), gaugeR, gauger, dev.temperature, 0, 80,
                  "TEMP", tempBuf, "C", tempColor(dev.temperature));
 
     // Info line
     tft.setTextColor(CRT_MID);
     tft.setTextSize(1);
-    tft.setCursor(SX(10), SY(96));
+    tft.setCursor(SX(10), SY(92));
     tft.printf("IP:%s", dev.ip);
     tft.setTextColor(CRT_BRIGHT);
-    tft.setCursor(SX(148), SY(96));
+    tft.setCursor(SX(148), SY(92));
     tft.printf("CORE:%dmV", dev.coreVoltage);
     tft.setTextColor(CRT_MID);
-    tft.setCursor(SX(240), SY(96));
+    tft.setCursor(SX(240), SY(92));
     if (dev.fanRpm > 0) {
         tft.printf("FAN:%d", dev.fanRpm);
     } else {
@@ -1245,7 +1231,7 @@ void drawDeviceScreen(int devIndex) {
     }
 
     // Performance panel
-    int perfY = SY(108);
+    int perfY = SY(104);
     int perfH = SY(68);
     drawPanel(SX(8), perfY, SCR_W - SX(16), perfH, "PERFORMANCE");
     int barX = SX(80);
@@ -1254,7 +1240,7 @@ void drawDeviceScreen(int devIndex) {
     int rowSpacing = SY(12);
 
     // Power
-    int row1Y = SY(122);
+    int row1Y = SY(118);
     tft.setTextColor(CRT_DIM);
     tft.setTextSize(1);
     tft.setCursor(SX(14), row1Y + 2);
@@ -1314,13 +1300,13 @@ void updateDeviceScreen(int devIndex) {
 
     if (!dev.valid) return;
 
-    int gaugeR = SS(28);
-    int gauger = SS(22);
-    int gaugeClear = SS(20);
+    int gaugeR = SS(26);
+    int gauger = SS(20);
+    int gaugeClear = SS(18);
 
     // Clear gauge centers
-    tft.fillCircle(SCR_W / 4, SY(60), gaugeClear, CRT_BG);
-    tft.fillCircle(SCR_W * 3 / 4, SY(60), gaugeClear, CRT_BG);
+    tft.fillCircle(SCR_W / 4, SY(52), gaugeClear, CRT_BG);
+    tft.fillCircle(SCR_W * 3 / 4, SY(52), gaugeClear, CRT_BG);
 
     // Hashrate gauge
     char hashBuf[16];
@@ -1332,26 +1318,26 @@ void updateDeviceScreen(int devIndex) {
         snprintf(hashBuf, sizeof(hashBuf), "%.0f", dev.hashRate);
         hashUnit = "GH/s";
     }
-    drawArcGauge(SCR_W / 4, SY(60), gaugeR, gauger, dev.hashRate, 0, 1000,
+    drawArcGauge(SCR_W / 4, SY(52), gaugeR, gauger, dev.hashRate, 0, 1000,
                  "HASHRATE", hashBuf, hashUnit, CRT_BRIGHT);
 
     // Temperature gauge
     char tempBuf[16];
     snprintf(tempBuf, sizeof(tempBuf), "%.1f", dev.temperature);
-    drawArcGauge(SCR_W * 3 / 4, SY(60), gaugeR, gauger, dev.temperature, 0, 80,
+    drawArcGauge(SCR_W * 3 / 4, SY(52), gaugeR, gauger, dev.temperature, 0, 80,
                  "TEMP", tempBuf, "C", tempColor(dev.temperature));
 
     // Info line
-    tft.fillRect(SX(8), SY(94), SCR_W - SX(16), SY(10), CRT_BG);
+    tft.fillRect(SX(8), SY(90), SCR_W - SX(16), SY(10), CRT_BG);
     tft.setTextColor(CRT_MID);
     tft.setTextSize(1);
-    tft.setCursor(SX(10), SY(96));
+    tft.setCursor(SX(10), SY(92));
     tft.printf("IP:%s", dev.ip);
     tft.setTextColor(CRT_BRIGHT);
-    tft.setCursor(SX(148), SY(96));
+    tft.setCursor(SX(148), SY(92));
     tft.printf("CORE:%dmV", dev.coreVoltage);
     tft.setTextColor(CRT_MID);
-    tft.setCursor(SX(240), SY(96));
+    tft.setCursor(SX(240), SY(92));
     if (dev.fanRpm > 0) {
         tft.printf("FAN:%d", dev.fanRpm);
     } else {
@@ -1363,7 +1349,7 @@ void updateDeviceScreen(int devIndex) {
     int barW = SCR_W - SX(96);
     int barH = SY(10);
     int rowSpacing = SY(12);
-    int row1Y = SY(122);
+    int row1Y = SY(118);
 
     // Power
     tft.fillRect(SX(36), row1Y - 1, SX(40), barH, PANEL_FILL);
@@ -1584,6 +1570,8 @@ void handleTouch() {
                         drawTouchRipple(touchStartX, touchStartY);
                         selectedCoin = (selectedCoin + 1) % COIN_COUNT;
                         prefs.putInt("coin", selectedCoin);
+                        pool.btcPrice = 0;
+                        pool.priceChange24h = 0;
                         fetchBtcPrice();
                         drawPoolScreen();
                     }
@@ -1737,12 +1725,12 @@ ButtonArea btnRateMinus = {SX(270), SY(170), SX(20), SY(14)};
 ButtonArea btnRatePlus  = {SX(294), SY(170), SX(20), SY(14)};
 
 // Device screen (6 buttons across)
-ButtonArea btnDevRestart   = {SX(8),   SY(182), SX(48), SY(22)};
-ButtonArea btnDevFreqPlus  = {SX(60),  SY(182), SX(48), SY(22)};
-ButtonArea btnDevFreqMinus = {SX(112), SY(182), SX(48), SY(22)};
-ButtonArea btnDevVoltPlus  = {SX(164), SY(182), SX(48), SY(22)};
-ButtonArea btnDevVoltMinus = {SX(216), SY(182), SX(48), SY(22)};
-ButtonArea btnDevFanPlus   = {SX(268), SY(182), SX(48), SY(22)};
+ButtonArea btnDevRestart   = {SX(8),   SY(186), SX(48), SY(22)};
+ButtonArea btnDevFreqPlus  = {SX(60),  SY(186), SX(48), SY(22)};
+ButtonArea btnDevFreqMinus = {SX(112), SY(186), SX(48), SY(22)};
+ButtonArea btnDevVoltPlus  = {SX(164), SY(186), SX(48), SY(22)};
+ButtonArea btnDevVoltMinus = {SX(216), SY(186), SX(48), SY(22)};
+ButtonArea btnDevFanPlus   = {SX(268), SY(186), SX(48), SY(22)};
 
 bool checkButtonPress(ButtonArea &btn, int x, int y) {
     return (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h);
