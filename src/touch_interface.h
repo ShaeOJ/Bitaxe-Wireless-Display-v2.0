@@ -4,7 +4,7 @@
  * Supports:
  *   - XPT2046  (resistive, SPI)  — CYD 2.4" — build flag: TOUCH_RESISTIVE
  *   - CST820   (capacitive, I2C) — CYD 2.4" — build flag: TOUCH_CAPACITIVE
- *   - GT911    (capacitive, I2C) — CYD 3.5" — build flag: TOUCH_GT911
+ *   - GT911    (capacitive, I2C) — CYD 3.2"/3.5" — build flag: TOUCH_GT911
  */
 
 #include <Arduino.h>
@@ -87,7 +87,7 @@ public:
 #include <Wire.h>
 #include <TAMC_GT911.h>
 
-static TAMC_GT911 gt911(TOUCH_SDA_PIN, TOUCH_SCL_PIN, TOUCH_INT_PIN, TOUCH_RST_PIN, 480, 320);
+static TAMC_GT911 gt911(TOUCH_SDA_PIN, TOUCH_SCL_PIN, TOUCH_INT_PIN, TOUCH_RST_PIN, SCR_W, SCR_H);
 
 class TouchInterface {
 public:
