@@ -30,7 +30,7 @@
 > WELCOME, OVERSEER.
 ```
 
-A **steampunk-themed multi-device BitAxe monitor** built for ESP32 Cheap Yellow Display (CYD) touchscreens. Supports the **2.4"**, **3.2"**, and **3.5"** CYD boards. Track up to **8 BitAxe miners** in real-time with a retro amber CRT aesthetic. Monitor hashrates, temperatures, power draw, shares, and more — all from a compact touchscreen in the comfort of your vault.
+A **steampunk-themed multi-device BitAxe monitor** built for ESP32 Cheap Yellow Display (CYD) touchscreens. Supports the **2.4"**, **2.8"**, **3.2"**, and **3.5"** CYD boards. Track up to **8 BitAxe miners** in real-time with a retro amber CRT aesthetic. Monitor hashrates, temperatures, power draw, shares, and more — all from a compact touchscreen in the comfort of your vault.
 
 ---
 
@@ -76,12 +76,17 @@ A **steampunk-themed multi-device BitAxe monitor** built for ESP32 Cheap Yellow 
 │  ├─ Capacitive (CST820) OR                                    │
 │  └─ Resistive (XPT2046) touch                                 │
 │                                                               │
-│  ESP32-3248S032 (CYD 3.2")      1      OPTION B              │
+│  ESP32-2432S028R (CYD 2.8")     1      OPTION B              │
+│  ├─ ILI9341 320x240 TFT LCD                                  │
+│  └─ Resistive (XPT2046) touch                                 │
+│     ⚠ Touch is on separate VSPI bus on this board            │
+│                                                               │
+│  ESP32-3248S032 (CYD 3.2")      1      OPTION C              │
 │  ├─ ST7789 320x240 IPS LCD                                   │
 │  ├─ Capacitive (GT911) OR                                     │
 │  └─ Resistive (XPT2046) touch                                 │
 │                                                               │
-│  ESP32-3248S035 (CYD 3.5")      1      OPTION C              │
+│  ESP32-3248S035 (CYD 3.5")      1      OPTION D              │
 │  ├─ ST7796 480x320 TFT LCD                                   │
 │  └─ Capacitive (GT911) touch                                  │
 │                                                               │
@@ -113,13 +118,14 @@ cd Bitaxe-Wireless-Display-v2.0
 
 | Environment | Board | Touch Type | Driver | Command |
 |---|---|---|---|---|
-| `cyd24c` | CYD 2.4" | Capacitive | CST820 (I2C) | `pio run -e cyd24c` |
-| `cyd24r` | CYD 2.4" | Resistive | XPT2046 (SPI) | `pio run -e cyd24r` |
-| `cyd32c` | CYD 3.2" | Capacitive | GT911 (I2C) | `pio run -e cyd32c` |
-| `cyd32r` | CYD 3.2" | Resistive | XPT2046 (SPI) | `pio run -e cyd32r` |
-| `cyd35c` | CYD 3.5" | Capacitive | GT911 (I2C) | `pio run -e cyd35c` |
+| `cyd24c` | CYD 2.4" (ESP32-2432S024) | Capacitive | CST820 (I2C) | `pio run -e cyd24c` |
+| `cyd24r` | CYD 2.4" (ESP32-2432S024) | Resistive | XPT2046 (SPI) | `pio run -e cyd24r` |
+| `cyd28r` | CYD 2.8" (ESP32-2432S028R) | Resistive | XPT2046 (VSPI) | `pio run -e cyd28r` |
+| `cyd32c` | CYD 3.2" (ESP32-3248S032) | Capacitive | GT911 (I2C) | `pio run -e cyd32c` |
+| `cyd32r` | CYD 3.2" (ESP32-3248S032) | Resistive | XPT2046 (SPI) | `pio run -e cyd32r` |
+| `cyd35c` | CYD 3.5" (ESP32-3248S035) | Capacitive | GT911 (I2C) | `pio run -e cyd35c` |
 
-> **Overseer's Note:** Check your board's touch type before flashing — wrong variant = touch won't respond. The 3.5" board is always capacitive (GT911). The 2.4" and 3.2" boards come in both resistive (R) and capacitive (C) variants.
+> **Overseer's Note:** Check your board's touch type before flashing — wrong variant = touch won't respond. The 2.8" and 3.5" boards are resistive/capacitive only respectively. The 2.4" and 3.2" boards come in both variants (R/C). The 2.8" uses a separate VSPI bus for touch — handled automatically by the firmware.
 
 ### Step 3 — Flash the Firmware
 
@@ -129,6 +135,9 @@ pio run -e cyd24c -t upload
 
 # CYD 2.4" Resistive touch
 pio run -e cyd24r -t upload
+
+# CYD 2.8" Resistive touch
+pio run -e cyd28r -t upload
 
 # CYD 3.2" Capacitive touch
 pio run -e cyd32c -t upload
@@ -202,6 +211,7 @@ Your flashable file is at:
 ```
 .pio/build/cyd24c/firmware_merged.bin    (2.4" capacitive touch)
 .pio/build/cyd24r/firmware_merged.bin    (2.4" resistive touch)
+.pio/build/cyd28r/firmware_merged.bin    (2.8" resistive touch)
 .pio/build/cyd32c/firmware_merged.bin    (3.2" capacitive touch)
 .pio/build/cyd32r/firmware_merged.bin    (3.2" resistive touch)
 .pio/build/cyd35c/firmware_merged.bin    (3.5" capacitive touch)
@@ -334,7 +344,7 @@ If you prefer to flash the 4 components separately (or if the merged bin isn't a
 │    re-flash the merged .bin at 0x0.                         │
 │                                                             │
 │  • Always use the correct build variant for your board:     │
-│    24 = 2.4", 32 = 3.2", 35 = 3.5"                        │
+│    24 = 2.4", 28 = 2.8", 32 = 3.2", 35 = 3.5"            │
 │    c = capacitive touch, r = resistive touch.               │
 │    Wrong variant = touch won't respond.                     │
 │                                                             │
@@ -412,7 +422,8 @@ SHARE ACCEPTED      Green (flash 200ms)     New share found!
 | [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) | 2.5.43 | Display driver & graphics rendering |
 | [ArduinoJson](https://github.com/bblanchon/ArduinoJson) | 6.21.5 | JSON parsing for API responses |
 | [WiFiManager](https://github.com/tzapu/WiFiManager) | Latest | Web-based WiFi configuration portal |
-| [bb_captouch](https://github.com/bitbank2/bb_captouch) | Latest | CST820 capacitive touch driver (2.4") |
+| [bb_captouch](https://github.com/bitbank2/bb_captouch) | Latest | CST820 capacitive touch driver (2.4" cap) |
+| [XPT2046_Touchscreen](https://github.com/PaulStoffregen/XPT2046_Touchscreen) | Latest | XPT2046 resistive touch driver (2.8") |
 | [TAMC_GT911](https://github.com/tamctec/gt911-arduino) | Latest | GT911 capacitive touch driver (3.2"/3.5") |
 
 ---
@@ -438,7 +449,7 @@ MEMPOOL.SPACE (Internet — HTTPS)
 
 ```
 Bitaxe-Wireless-Display-v2.0/
-├── platformio.ini           # Build config (5 environments: cyd24c, cyd24r, cyd32c, cyd32r, cyd35c)
+├── platformio.ini           # Build config (6 environments: cyd24c, cyd24r, cyd28r, cyd32c, cyd32r, cyd35c)
 ├── merge_firmware.py        # Post-build script — creates merged .bin
 ├── src/
 │   ├── main.cpp             # Application firmware (auto-scales UI to screen size)
