@@ -2,9 +2,10 @@
 /**
  * Unified touch interface for CYD boards
  * Supports:
- *   - XPT2046  (resistive, SPI)  — CYD 2.4" — build flag: TOUCH_RESISTIVE
- *   - CST820   (capacitive, I2C) — CYD 2.4" — build flag: TOUCH_CAPACITIVE
- *   - GT911    (capacitive, I2C) — CYD 3.2"/3.5" — build flag: TOUCH_GT911
+ *   - XPT2046  (resistive, SPI)       — CYD 2.4"        — build flag: TOUCH_RESISTIVE
+ *   - XPT2046  (resistive, VSPI bus)  — CYD 2.8"        — build flag: TOUCH_XPT2046_VSPI
+ *   - CST820   (capacitive, I2C)      — CYD 2.4"        — build flag: TOUCH_CAPACITIVE
+ *   - GT911    (capacitive, I2C)      — CYD 3.2"/3.5"   — build flag: TOUCH_GT911
  */
 
 #include <Arduino.h>
@@ -45,6 +46,47 @@ public:
 };
 
 #endif // TOUCH_RESISTIVE
+
+// ===== XPT2046 Resistive Touch (separate VSPI bus — CYD 2.8") =====
+#ifdef TOUCH_XPT2046_VSPI
+
+#include <SPI.h>
+#include <XPT2046_Touchscreen.h>
+
+static XPT2046_Touchscreen ts(TOUCH_CS, TOUCH_IRQ_PIN);
+
+class TouchInterface {
+public:
+    void begin() {
+        // Pre-initialize VSPI (global SPI object) with our custom pins.
+        // ESP32's SPI.begin() is a no-op if already initialized, so this call wins
+        // over the library's internal SPI.begin() with default pins.
+        // TFT_eSPI uses USE_HSPI_PORT separately, so VSPI is free for touch.
+        SPI.begin(TOUCH_SPI_CLK, TOUCH_SPI_MISO, TOUCH_SPI_MOSI, TOUCH_CS);
+        ts.begin();
+        Serial.println("TOUCH: XPT2046 (VSPI) resistive initialized");
+    }
+
+    TouchPoint read() {
+        TouchPoint tp = {0, 0, false};
+        if (ts.touched()) {
+            TS_Point p = ts.getPoint();
+            // Map raw ADC values to landscape screen coords (320x240).
+            // Default calibration — adjust XMIN/XMAX/YMIN/YMAX if touch is off-target.
+            // p.x/p.y are in portrait orientation; we rotate for landscape here.
+            const int XMIN = 200, XMAX = 3900;
+            const int YMIN = 200, YMAX = 3900;
+            tp.x = map(p.y, YMIN, YMAX, 0, SCR_W - 1);
+            tp.y = map(p.x, XMAX, XMIN, 0, SCR_H - 1);  // inverted
+            tp.x = constrain(tp.x, 0, SCR_W - 1);
+            tp.y = constrain(tp.y, 0, SCR_H - 1);
+            tp.pressed = true;
+        }
+        return tp;
+    }
+};
+
+#endif // TOUCH_XPT2046_VSPI
 
 // ===== CST820 Capacitive Touch (via bb_captouch) =====
 #ifdef TOUCH_CAPACITIVE
