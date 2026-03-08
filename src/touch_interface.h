@@ -147,6 +147,12 @@ public:
         if (gt911.isTouched) {
             tp.x = gt911.points[0].x;
             tp.y = gt911.points[0].y;
+#ifdef TOUCH_INVERT_X
+            tp.x = (SCR_W - 1) - tp.x;
+#endif
+#ifdef TOUCH_INVERT_Y
+            tp.y = (SCR_H - 1) - tp.y;
+#endif
             tp.x = constrain(tp.x, 0, SCR_W - 1);
             tp.y = constrain(tp.y, 0, SCR_H - 1);
             tp.pressed = true;

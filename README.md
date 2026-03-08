@@ -9,7 +9,7 @@
 ║      ╚═══╝  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝          ╚═╝   ╚══════╝ ╚═════╝     ║
 ║                                                                              ║
 ║              B I T A X E   W I R E L E S S   D I S P L A Y                   ║
-║                          ══ v2.0 ══                                          ║
+║                        ══ v2.4.0-beta ══                                     ║
 ║                                                                              ║
 ║          "Preparing for the future — one hash at a time."                    ║
 ║                                                                              ║
@@ -25,12 +25,12 @@
 
 ```
 > ACCESSING VAULT-TEC MAINFRAME...
-> LOADING MODULE: BITAXE WIRELESS DISPLAY v2.0
+> LOADING MODULE: BITAXE WIRELESS DISPLAY v2.4.0-beta
 > STATUS: ██████████████████████████████ 100%
 > WELCOME, OVERSEER.
 ```
 
-A **steampunk-themed multi-device BitAxe monitor** built for ESP32 Cheap Yellow Display (CYD) touchscreens. Supports the **2.4"**, **2.8"**, **3.2"**, and **3.5"** CYD boards. Track up to **8 BitAxe miners** in real-time with a retro amber CRT aesthetic. Monitor hashrates, temperatures, power draw, shares, and more — all from a compact touchscreen in the comfort of your vault.
+A **steampunk-themed multi-device BitAxe monitor** built for ESP32 Cheap Yellow Display (CYD) touchscreens. Supports the **2.4"**, **2.8"**, **3.2"**, and **3.5"** CYD boards. Track up to **8 BitAxe miners** in real-time with a dark blue & gold CRT aesthetic. Monitor hashrates, temperatures, power draw, shares, and more — all from a compact touchscreen in the comfort of your vault.
 
 ---
 
@@ -52,7 +52,8 @@ A **steampunk-themed multi-device BitAxe monitor** built for ESP32 Cheap Yellow 
 ║  [■] Network Difficulty ........ Mempool.space integration     ║
 ║  [■] Electricity Cost Calc ..... Configurable $/kWh rate      ║
 ║  [■] WiFi Config Portal ........ Web-based setup, no reflash  ║
-║  [■] Steampunk CRT Theme ...... Amber/gold retro aesthetic    ║
+║  [■] mDNS Settings Server ...... http://bitaxe.local on LAN  ║
+║  [■] CRT Theme ................. Dark blue & gold phosphor    ║
 ║  [■] LED Status Indicators ..... RGB breathing + flash alerts  ║
 ║  [■] Touch Navigation ......... Swipe between screens         ║
 ║  [■] Non-Volatile Storage ...... Settings persist on reboot   ║
@@ -88,7 +89,8 @@ A **steampunk-themed multi-device BitAxe monitor** built for ESP32 Cheap Yellow 
 │                                                               │
 │  ESP32-3248S035 (CYD 3.5")      1      OPTION D              │
 │  ├─ ST7796 480x320 TFT LCD                                   │
-│  └─ Capacitive (GT911) touch                                  │
+│  ├─ Capacitive (GT911) touch  OR                              │
+│  └─ Resistive (XPT2046) touch                                 │
 │                                                               │
 │  OTHER                           QTY    STATUS                │
 │  ─────                           ───    ──────                │
@@ -124,8 +126,9 @@ cd Bitaxe-Wireless-Display-v2.0
 | `cyd32c` | CYD 3.2" (ESP32-3248S032) | Capacitive | GT911 (I2C) | `pio run -e cyd32c` |
 | `cyd32r` | CYD 3.2" (ESP32-3248S032) | Resistive | XPT2046 (SPI) | `pio run -e cyd32r` |
 | `cyd35c` | CYD 3.5" (ESP32-3248S035) | Capacitive | GT911 (I2C) | `pio run -e cyd35c` |
+| `cyd35r` | CYD 3.5" (ESP32-3248S035) | Resistive | XPT2046 (SPI) | `pio run -e cyd35r` |
 
-> **Overseer's Note:** Check your board's touch type before flashing — wrong variant = touch won't respond. The 2.8" and 3.5" boards are resistive/capacitive only respectively. The 2.4" and 3.2" boards come in both variants (R/C). The 2.8" uses a separate VSPI bus for touch — handled automatically by the firmware.
+> **Overseer's Note:** Check your board's touch type before flashing — wrong variant = touch won't respond. The 2.4", 3.2", and 3.5" boards come in both capacitive (C) and resistive (R) variants. The 2.8" is resistive only with a separate VSPI bus for touch — handled automatically by the firmware.
 
 ### Step 3 — Flash the Firmware
 
@@ -147,6 +150,9 @@ pio run -e cyd32r -t upload
 
 # CYD 3.5" Capacitive touch
 pio run -e cyd35c -t upload
+
+# CYD 3.5" Resistive touch
+pio run -e cyd35r -t upload
 ```
 
 ### Step 4 — Configure Your Vault
@@ -166,6 +172,10 @@ pio run -e cyd35c -t upload
 │     Example: 192.168.1.100,192.168.1.101,192.168.1.102       │
 │  6. Set your electricity rate ($/kWh)                        │
 │  7. Save — the device will reboot and connect                │
+│                                                              │
+│  AFTER CONNECTING:                                           │
+│  ├─ Settings page: http://bitaxe.local                       │
+│  └─ Re-enter device IPs or change electricity rate anytime   │
 │                                                              │
 │  TIMEOUT: 180 seconds — device restarts if not configured    │
 │                                                              │
@@ -215,6 +225,7 @@ Your flashable file is at:
 .pio/build/cyd32c/firmware_merged.bin    (3.2" capacitive touch)
 .pio/build/cyd32r/firmware_merged.bin    (3.2" resistive touch)
 .pio/build/cyd35c/firmware_merged.bin    (3.5" capacitive touch)
+.pio/build/cyd35r/firmware_merged.bin    (3.5" resistive touch)
 ```
 
 #### Step 2 — Understand What's Inside
@@ -449,7 +460,7 @@ MEMPOOL.SPACE (Internet — HTTPS)
 
 ```
 Bitaxe-Wireless-Display-v2.0/
-├── platformio.ini           # Build config (6 environments: cyd24c, cyd24r, cyd28r, cyd32c, cyd32r, cyd35c)
+├── platformio.ini           # Build config (7 environments: cyd24c, cyd24r, cyd28r, cyd32c, cyd32r, cyd35c, cyd35r)
 ├── merge_firmware.py        # Post-build script — creates merged .bin
 ├── src/
 │   ├── main.cpp             # Application firmware (auto-scales UI to screen size)
@@ -473,6 +484,43 @@ Bitaxe-Wireless-Display-v2.0/
 ║  Price not updating              CoinGecko rate limit (wait) ║
 ║  Config portal timeout           Restart & try within 180s   ║
 ╚══════════════════════════════════════════════════════════════╝
+```
+
+---
+
+## `> CHANGELOG.LOG`
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  VERSION HISTORY — VAULT-TEC FIRMWARE ARCHIVE                    ║
+╠══════════════════════════════════════════════════════════════════╣
+║                                                                  ║
+║  v2.4.0-beta  [2026-03-08]                                       ║
+║  ├─ NEW: cyd35r — 3.5" resistive touch (XPT2046) support        ║
+║  ├─ NEW: mDNS web server — configure at http://bitaxe.local      ║
+║  ├─ NEW: Dark blue & gold CRT color theme (replaces amber)       ║
+║  ├─ NEW: "AxeOS" Satisfy script logo in header                   ║
+║  ├─ NEW: flashButton() — tactile press highlight feedback        ║
+║  ├─ FIX: GT911 touch axis inversion (TOUCH_INVERT_X/Y flags)    ║
+║  ├─ FIX: J/TH efficiency calculation (divide by TH not GH)      ║
+║  ├─ UX:  480x320 gauge values rendered at size-2 text            ║
+║  └─ UX:  Denser CRT scanlines (every 2px), brighter borders      ║
+║                                                                  ║
+║  v2.3.0-beta  [2025]                                             ║
+║  └─ NEW: cyd28r — 2.8" resistive touch (VSPI bus) support       ║
+║                                                                  ║
+║  v2.2.0-beta  [2025]                                             ║
+║  ├─ NEW: cyd32r / cyd32c — 3.2" board support                   ║
+║  └─ FIX: BGR color order for ST7789                              ║
+║                                                                  ║
+║  v2.1.0  [2025]                                                  ║
+║  ├─ NEW: cyd35c — 3.5" capacitive touch support                  ║
+║  └─ NEW: Auto-scaling UI (SX/SY/SS macros)                       ║
+║                                                                  ║
+║  v2.0.0  [2025]                                                  ║
+║  └─ Initial release — cyd24c / cyd24r (2.4" boards)              ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
 ---

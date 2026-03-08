@@ -17,6 +17,8 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <WiFiManager.h>
+#include <ESPmDNS.h>
+#include <WebServer.h>
 
 // SCR_W and SCR_H are defined via build flags (-DSCR_W=320 -DSCR_H=240 or -DSCR_W=480 -DSCR_H=320)
 // Fallback defaults for safety
@@ -39,20 +41,20 @@ TFT_eSPI tft = TFT_eSPI();
 // Touch
 TouchInterface touch;
 
-// === STEAMPUNK AMBER/GOLD PALETTE ===
-#define CRT_BG        0x0000   // Pure black
-#define CRT_SCANLINE  0x1040   // Very dim amber scanlines
-#define CRT_GLOW      0x2080   // Amber glow underlay
-#define CRT_DIM       0x4940   // Dim bronze labels/borders
-#define CRT_MID       0x8240   // Medium amber secondary text
-#define CRT_BRIGHT    0xCBC0   // Bright amber primary accent
-#define CRT_WHITE     0xFEE5   // Bright gold for values
+// === DARK PASTEL BLUE & GOLD CRT PALETTE ===
+#define CRT_BG        0x08A7   // Dark midnight blue — CRT phosphor base (RGB: 8,20,56)
+#define CRT_SCANLINE  0x0043   // Scan gap — visible CRT texture (RGB: 0,8,24)
+#define CRT_GLOW      0x61E0   // Dim amber glow (RGB: 96,60,0)
+#define CRT_DIM       0xA320   // Dim gold — labels (RGB: 160,100,0)
+#define CRT_MID       0xDD00   // Medium gold — borders, accents (RGB: 216,160,0)
+#define CRT_BRIGHT    0xFE40   // Bright gold — highlights (RGB: 255,200,0)
+#define CRT_WHITE     0xFF31   // Warm cream — values (RGB: 255,230,136)
 #define CRT_RED       0xF800   // Red (alerts)
 #define CRT_YELLOW    0xFFE0   // Yellow (warnings)
 #define CRT_ORANGE    0xFD20   // Orange (Bitcoin accent)
 #define CRT_RED_DARK  0x8000   // Dark red (danger buttons)
-#define PANEL_FILL    0x1860   // Dark brown panel fill
-#define PANEL_BORDER  0x69E0   // Bronze panel border
+#define PANEL_FILL    0x10EA   // Blue panel fill — lighter than BG (RGB: 16,28,80)
+#define PANEL_BORDER  0xDD00   // Gold panel border
 
 // Button styles
 enum ButtonStyle { BTN_PRIMARY, BTN_DANGER, BTN_GHOST };
@@ -85,6 +87,7 @@ const unsigned long SHARE_FLASH_DURATION = 200;
 
 // Data storage
 Preferences prefs;
+WebServer webServer(80);
 
 // Update interval
 unsigned long lastUpdate = 0;
@@ -187,7 +190,7 @@ void drawPoolScreen();
 void drawDeviceScreen(int devIndex);
 void redrawCurrentScreen();
 void drawScanlines();
-void drawTouchRipple(int x, int y);
+void flashButton(ButtonArea &btn, const char* label, ButtonStyle style);
 void scanlineWipeTransition();
 void parseDeviceIPs(const char* ipList);
 bool postDeviceSetting(int deviceIndex, const char* jsonBody);
@@ -335,7 +338,8 @@ void drawCoinIcon24(int x, int y, uint16_t color, const char* ticker) {
 // ===== UI HELPER FUNCTIONS =====
 
 void drawScanlines() {
-    for (int y = 0; y < SCR_H; y += 3) {
+    // Draw darker scan gap every 2 rows — classic CRT phosphor row texture
+    for (int y = 0; y < SCR_H; y += 2) {
         tft.drawFastHLine(0, y, SCR_W, CRT_SCANLINE);
     }
 }
@@ -359,12 +363,12 @@ void drawScreenFrame(const char* title) {
     tft.drawFastHLine(SX(6), SY(28), SCR_W - SX(12), CRT_BRIGHT);
     tft.drawFastHLine(SX(6), SY(29), SCR_W - SX(12), CRT_DIM);
 
-    // "BitAxe" logo in ornate serif (left)
-    tft.setFreeFont(&FreeSerifBoldItalic12pt7b);
+    // "AxeOS" logo in Satisfy script font (left)
+    tft.setFreeFont(&Satisfy_24);
     tft.setTextColor(CRT_WHITE);
     tft.setTextSize(1);
-    tft.setCursor(SX(10), SY(23));
-    tft.print("BitAxe");
+    tft.setCursor(SX(10), SY(24));
+    tft.print("AxeOS");
     tft.setFreeFont(NULL);
 
     // Screen title (right-aligned)
@@ -379,11 +383,11 @@ void drawPanel(int x, int y, int w, int h, const char* title) {
     tft.fillRoundRect(x, y, w, h, 4, PANEL_FILL);
     tft.drawRoundRect(x, y, w, h, 4, PANEL_BORDER);
     if (title) {
-        tft.setTextColor(CRT_DIM);
+        tft.setTextColor(CRT_MID);
         tft.setTextSize(1);
         tft.setCursor(x + 4, y + 3);
         tft.print(title);
-        tft.drawFastHLine(x + 3, y + 12, w - 6, CRT_DIM);
+        tft.drawFastHLine(x + 3, y + 12, w - 6, CRT_MID);
     }
 }
 
@@ -397,6 +401,23 @@ void drawArcGauge(int cx, int cy, int R, int r, float value, float minVal, float
         int endAngle = (240 + sweep) % 360;
         tft.drawSmoothArc(cx, cy, R, r, 240, endAngle, color, CRT_BG, false);
     }
+#if SCR_W >= 480
+    int valW = strlen(valueStr) * 12;
+    tft.setTextColor(CRT_WHITE);
+    tft.setTextSize(2);
+    tft.setCursor(cx - valW / 2, cy - 10);
+    tft.print(valueStr);
+    int unitW = strlen(unit) * 6;
+    tft.setTextColor(CRT_MID);
+    tft.setTextSize(1);
+    tft.setCursor(cx - unitW / 2, cy + 8);
+    tft.print(unit);
+    int labelW = strlen(label) * 6;
+    tft.setTextColor(CRT_MID);
+    tft.setTextSize(1);
+    tft.setCursor(cx - labelW / 2, cy + R + 4);
+    tft.print(label);
+#else
     int valW = strlen(valueStr) * 6;
     tft.setTextColor(CRT_WHITE);
     tft.setTextSize(1);
@@ -408,10 +429,11 @@ void drawArcGauge(int cx, int cy, int R, int r, float value, float minVal, float
     tft.setCursor(cx - unitW / 2, cy + 4);
     tft.print(unit);
     int labelW = strlen(label) * 6;
-    tft.setTextColor(CRT_DIM);
+    tft.setTextColor(CRT_MID);
     tft.setTextSize(1);
     tft.setCursor(cx - labelW / 2, cy + R + 4);
     tft.print(label);
+#endif
 }
 
 void drawHBar(int x, int y, int w, int h, float value, float maxVal, uint16_t color,
@@ -575,20 +597,24 @@ double getMaxBestDiff() {
 
 // ===== TOUCH EFFECTS =====
 
-void drawTouchRipple(int x, int y) {
-    x = constrain(x, 15, SCR_W - 15);
-    y = constrain(y, 15, SCR_H - 15);
-    uint16_t colors[] = {CRT_BRIGHT, CRT_MID, CRT_DIM, CRT_GLOW, CRT_SCANLINE};
-    int radii[] = {6, 12, 18, 24, 30};
-    for (int i = 0; i < 5; i++) {
-        tft.drawCircle(x, y, radii[i], colors[i]);
-        tft.drawCircle(x, y, radii[i] - 1, colors[i]);
-        delay(15);
+void flashButton(ButtonArea &btn, const char* label, ButtonStyle style) {
+    // Pressed state
+    uint16_t pressedFill, pressedBorder;
+    switch (style) {
+        case BTN_DANGER: pressedFill = CRT_RED;  pressedBorder = CRT_WHITE; break;
+        case BTN_GHOST:  pressedFill = CRT_DIM;  pressedBorder = CRT_MID;   break;
+        default:         pressedFill = CRT_MID;  pressedBorder = CRT_WHITE; break;
     }
-    for (int i = 4; i >= 0; i--) {
-        tft.drawCircle(x, y, radii[i], CRT_BG);
-        tft.drawCircle(x, y, radii[i] - 1, CRT_BG);
-    }
+    tft.fillRoundRect(btn.x, btn.y, btn.w, btn.h, 3, pressedFill);
+    tft.drawRoundRect(btn.x, btn.y, btn.w, btn.h, 3, pressedBorder);
+    tft.setTextColor(CRT_WHITE);
+    tft.setTextSize(1);
+    int labelW = strlen(label) * 6;
+    tft.setCursor(btn.x + (btn.w - labelW) / 2, btn.y + (btn.h - 8) / 2);
+    tft.print(label);
+    delay(80);
+    // Restore
+    drawButton(btn, label, style);
 }
 
 void scanlineWipeTransition() {
@@ -714,7 +740,7 @@ void drawMainUI() {
     float totalHash = getTotalHashrate();
     float totalPower = getTotalPower();
     float totalHashTH = totalHash / 1000.0;
-    float efficiency = (totalHashTH > 0) ? (totalPower / (totalHashTH * 1000.0)) : 0;
+    float efficiency = (totalHashTH > 0) ? (totalPower / totalHashTH) : 0;
 
     int gaugeR = SS(26);
     int gauger = SS(20);
@@ -812,6 +838,12 @@ void drawMainUI() {
     tft.setCursor(SX(172), statusY + SY(7));
     tft.printf("%dh%dm", hrs, mins);
 
+    // Settings URL hint
+    tft.setTextColor(CRT_GLOW);
+    tft.setTextSize(1);
+    tft.setCursor(SCR_W / 2 - 36, SY(196));
+    tft.print("bitaxe.local");
+
     drawNavBar(0, getTotalScreens());
 }
 
@@ -829,7 +861,7 @@ void updateDisplay() {
     float totalHash = getTotalHashrate();
     float totalPower = getTotalPower();
     float totalHashTH = totalHash / 1000.0;
-    float efficiency = (totalHashTH > 0) ? (totalPower / (totalHashTH * 1000.0)) : 0;
+    float efficiency = (totalHashTH > 0) ? (totalPower / totalHashTH) : 0;
 
     char buf[16];
     int gaugeR = SS(26);
@@ -923,8 +955,12 @@ void drawPoolScreen() {
 
     uint16_t coinColor = coins[selectedCoin].color;
 
-    // Price panel
+    // Price panel (leave right edge clear for NEXT button on wide screens)
+#if SCR_W >= 480
+    drawPanel(SX(8), SY(34), SX(252), SY(48));
+#else
     drawPanel(SX(8), SY(34), SCR_W - SX(16), SY(48));
+#endif
     drawCoinIcon24(SX(12), SY(38), coinColor, coins[selectedCoin].ticker);
     char priceBuf[24];
     if (pool.btcPrice > 0) {
@@ -968,10 +1004,11 @@ void drawPoolScreen() {
     char diffBuf[16];
     formatDiff(diffBuf, sizeof(diffBuf), bestAll);
     tft.setTextColor(CRT_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(SX(14), SY(102));
+    tft.setTextSize(2);
+    tft.setCursor(SX(14), SY(96));
     tft.print(diffBuf);
-    drawHBar(SX(14), SY(114), halfW - SX(14), SY(6), 1.0, 1.0, CRT_MID, NULL);
+    tft.setTextSize(1);
+    drawHBar(SX(14), SY(116), halfW - SX(14), SY(6), 1.0, 1.0, CRT_MID, NULL);
 
     int diff2X = SX(8) + halfW + SX(4);
     int diff2W = SCR_W - diff2X - SX(8);
@@ -979,11 +1016,12 @@ void drawPoolScreen() {
     double bestSess = getMaxBestSessionDiff();
     formatDiff(diffBuf, sizeof(diffBuf), bestSess);
     tft.setTextColor(CRT_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(diff2X + SX(6), SY(102));
+    tft.setTextSize(2);
+    tft.setCursor(diff2X + SX(6), SY(96));
     tft.print(diffBuf);
+    tft.setTextSize(1);
     float sessionPct = (bestAll > 0) ? (float)(bestSess / bestAll) : 0;
-    drawHBar(diff2X + SX(6), SY(114), diff2W - SX(12), SY(6), sessionPct, 1.0, CRT_MID, NULL);
+    drawHBar(diff2X + SX(6), SY(116), diff2W - SX(12), SY(6), sessionPct, 1.0, CRT_MID, NULL);
 
     // Bottom row: Error Rate | Net Diff | Daily Cost
     float errPct = 0;
@@ -996,7 +1034,11 @@ void drawPoolScreen() {
 
     int botW = (SCR_W - SX(24)) / 3;
     int botY = SY(130);
+#if SCR_W >= 480
+    int botH = SY(80);  // taller panels — fills space above navbar
+#else
     int botH = SY(60);
+#endif
 
     drawPanel(SX(8), botY, botW, botH, "ERROR RATE");
     uint16_t errColor = CRT_BRIGHT;
@@ -1005,21 +1047,24 @@ void drawPoolScreen() {
     char errBuf[16];
     snprintf(errBuf, sizeof(errBuf), "%.2f%%", errPct);
     tft.setTextColor(errColor);
-    tft.setTextSize(1);
-    tft.setCursor(SX(14), SY(146));
+    tft.setTextSize(2);
+    tft.setCursor(SX(14), SY(144));
     tft.print(errBuf);
-    drawHBar(SX(14), SY(158), botW - SX(14), SY(6), errPct, 10.0, errColor, NULL);
+    tft.setTextSize(1);
+    drawHBar(SX(14), SY(164), botW - SX(14), SY(6), errPct, 10.0, errColor, NULL);
 
     int bot2X = SX(8) + botW + SX(4);
     drawPanel(bot2X, botY, botW, botH, "NET DIFF");
     tft.setTextColor(CRT_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(bot2X + SX(6), SY(150));
+    tft.setTextSize(2);
+    tft.setCursor(bot2X + SX(6), SY(148));
     if (pool.networkDifficulty > 0) {
         tft.printf("%.2fT", pool.networkDifficulty / 1000000000000.0);
     } else {
+        tft.setTextSize(1);
         tft.print("Loading...");
     }
+    tft.setTextSize(1);
 
     int bot3X = bot2X + botW + SX(4);
     int bot3W = SCR_W - bot3X - SX(8);
@@ -1029,18 +1074,18 @@ void drawPoolScreen() {
     float dailyCost = dailyKwh * electricityRate;
     tft.setTextColor(CRT_MID);
     tft.setTextSize(1);
-    tft.setCursor(bot3X + SX(6), SY(146));
+    tft.setCursor(bot3X + SX(6), SY(142));
     tft.printf("%.0fW", totalPower);
     char costBuf[16];
     snprintf(costBuf, sizeof(costBuf), "$%.2f/d", dailyCost);
     tft.setTextColor(CRT_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(bot3X + SX(6), SY(158));
+    tft.setTextSize(2);
+    tft.setCursor(bot3X + SX(6), SY(152));
     tft.print(costBuf);
+    tft.setTextSize(1);
     char rateBuf[16];
     snprintf(rateBuf, sizeof(rateBuf), "@$%.2f", electricityRate);
     tft.setTextColor(CRT_DIM);
-    tft.setTextSize(1);
     tft.setCursor(bot3X + SX(6), SY(172));
     tft.print(rateBuf);
     drawButton(btnRateMinus, "-", BTN_GHOST);
@@ -1052,7 +1097,7 @@ void drawPoolScreen() {
 void updatePoolScreen() {
     uint16_t coinColor = coins[selectedCoin].color;
 
-    tft.fillRect(SX(36), SY(36), SX(240), SY(18), PANEL_FILL);
+    tft.fillRect(SX(36), SY(36), SX(216), SY(18), PANEL_FILL);
     char priceBuf[24];
     if (pool.btcPrice > 0) {
         formatPrice(priceBuf, sizeof(priceBuf), pool.btcPrice);
@@ -1073,7 +1118,7 @@ void updatePoolScreen() {
         tft.printf("%.1f%%", pool.priceChange24h);
     }
 
-    tft.fillRect(SX(36), SY(68), SX(240), SY(10), PANEL_FILL);
+    tft.fillRect(SX(36), SY(68), SX(216), SY(10), PANEL_FILL);
     tft.setTextColor(CRT_DIM);
     tft.setTextSize(1);
     tft.setCursor(SX(38), SY(70));
@@ -1084,33 +1129,35 @@ void updatePoolScreen() {
     }
 
     // Best diff all-time
-    tft.fillRect(SX(12), SY(98), SX(140), SY(12), PANEL_FILL);
+    tft.fillRect(SX(12), SY(93), SX(140), SY(20), PANEL_FILL);
     double bestAll = getMaxBestDiff();
     char diffBuf[16];
     formatDiff(diffBuf, sizeof(diffBuf), bestAll);
     tft.setTextColor(CRT_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(SX(14), SY(102));
+    tft.setTextSize(2);
+    tft.setCursor(SX(14), SY(96));
     tft.print(diffBuf);
+    tft.setTextSize(1);
 
     // Best diff session
     int halfW = (SCR_W - SX(20)) / 2;
     int diff2X = SX(8) + halfW + SX(4);
     int diff2W = SCR_W - diff2X - SX(8);
-    tft.fillRect(diff2X + SX(4), SY(98), diff2W - SX(8), SY(12), PANEL_FILL);
+    tft.fillRect(diff2X + SX(4), SY(93), diff2W - SX(8), SY(20), PANEL_FILL);
     double bestSess = getMaxBestSessionDiff();
     formatDiff(diffBuf, sizeof(diffBuf), bestSess);
     tft.setTextColor(CRT_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(diff2X + SX(6), SY(102));
+    tft.setTextSize(2);
+    tft.setCursor(diff2X + SX(6), SY(96));
     tft.print(diffBuf);
-    tft.fillRect(diff2X + SX(6), SY(114), diff2W - SX(12), SY(6), PANEL_FILL);
+    tft.setTextSize(1);
+    tft.fillRect(diff2X + SX(6), SY(116), diff2W - SX(12), SY(6), PANEL_FILL);
     float sessionPct = (bestAll > 0) ? (float)(bestSess / bestAll) : 0;
-    drawHBar(diff2X + SX(6), SY(114), diff2W - SX(12), SY(6), sessionPct, 1.0, CRT_MID, NULL);
+    drawHBar(diff2X + SX(6), SY(116), diff2W - SX(12), SY(6), sessionPct, 1.0, CRT_MID, NULL);
 
     // Error rate
     int botW = (SCR_W - SX(24)) / 3;
-    tft.fillRect(SX(12), SY(142), SX(90), SY(24), PANEL_FILL);
+    tft.fillRect(SX(12), SY(141), SX(90), SY(28), PANEL_FILL);
     float errPct = 0;
     int totalAcc = getTotalSharesAccepted();
     int totalRej = 0;
@@ -1124,44 +1171,47 @@ void updatePoolScreen() {
     char errBuf[16];
     snprintf(errBuf, sizeof(errBuf), "%.2f%%", errPct);
     tft.setTextColor(errColor);
-    tft.setTextSize(1);
-    tft.setCursor(SX(14), SY(146));
+    tft.setTextSize(2);
+    tft.setCursor(SX(14), SY(144));
     tft.print(errBuf);
-    tft.fillRect(SX(14), SY(158), botW - SX(14), SY(6), PANEL_FILL);
-    drawHBar(SX(14), SY(158), botW - SX(14), SY(6), errPct, 10.0, errColor, NULL);
+    tft.setTextSize(1);
+    tft.fillRect(SX(14), SY(164), botW - SX(14), SY(6), PANEL_FILL);
+    drawHBar(SX(14), SY(164), botW - SX(14), SY(6), errPct, 10.0, errColor, NULL);
 
     // Network difficulty
     int bot2X = SX(8) + botW + SX(4);
-    tft.fillRect(bot2X + SX(4), SY(146), SX(90), SY(14), PANEL_FILL);
+    tft.fillRect(bot2X + SX(4), SY(145), SX(90), SY(20), PANEL_FILL);
     tft.setTextColor(CRT_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(bot2X + SX(6), SY(150));
+    tft.setTextSize(2);
+    tft.setCursor(bot2X + SX(6), SY(148));
     if (pool.networkDifficulty > 0) {
         tft.printf("%.2fT", pool.networkDifficulty / 1000000000000.0);
     } else {
+        tft.setTextSize(1);
         tft.print("Loading...");
     }
+    tft.setTextSize(1);
 
     // Daily cost
     int bot3X = bot2X + botW + SX(4);
-    tft.fillRect(bot3X + SX(4), SY(142), SX(86), SY(40), PANEL_FILL);
+    tft.fillRect(bot3X + SX(4), SY(139), SX(86), SY(44), PANEL_FILL);
     float totalPower = getTotalPower();
     float dailyKwh = totalPower * 24.0 / 1000.0;
     float dailyCost = dailyKwh * electricityRate;
     tft.setTextColor(CRT_MID);
     tft.setTextSize(1);
-    tft.setCursor(bot3X + SX(6), SY(146));
+    tft.setCursor(bot3X + SX(6), SY(142));
     tft.printf("%.0fW", totalPower);
     char costBuf[16];
     snprintf(costBuf, sizeof(costBuf), "$%.2f/d", dailyCost);
     tft.setTextColor(CRT_WHITE);
-    tft.setTextSize(1);
-    tft.setCursor(bot3X + SX(6), SY(158));
+    tft.setTextSize(2);
+    tft.setCursor(bot3X + SX(6), SY(152));
     tft.print(costBuf);
+    tft.setTextSize(1);
     char rateBuf[16];
     snprintf(rateBuf, sizeof(rateBuf), "@$%.2f", electricityRate);
     tft.setTextColor(CRT_DIM);
-    tft.setTextSize(1);
     tft.setCursor(bot3X + SX(6), SY(172));
     tft.print(rateBuf);
     drawButton(btnRateMinus, "-", BTN_GHOST);
@@ -1192,104 +1242,107 @@ void drawDeviceScreen(int devIndex) {
         return;
     }
 
-    int gaugeR = SS(26);
-    int gauger = SS(20);
+#if SCR_W >= 480
+    // 480x320: CONTROLS just below header (header ends ~SY(29)), gauges in middle, stats below
+    {
+        drawPanel(SX(4), SY(32), SCR_W - SX(8), SY(30), NULL);
+        drawButton(btnDevRestart,   "RST",  BTN_DANGER);
+        drawButton(btnDevFreqPlus,  "FRQ+", BTN_PRIMARY);
+        drawButton(btnDevFreqMinus, "FRQ-", BTN_PRIMARY);
+        drawButton(btnDevVoltPlus,  "mV+",  BTN_PRIMARY);
+        drawButton(btnDevVoltMinus, "mV-",  BTN_PRIMARY);
+        drawButton(btnDevFanPlus,   "FAN+", BTN_PRIMARY);
 
-    // Hashrate arc gauge
-    char hashBuf[16];
-    const char* hashUnit;
-    if (dev.hashRate >= 1000) {
-        snprintf(hashBuf, sizeof(hashBuf), "%.2f", dev.hashRate / 1000.0);
-        hashUnit = "TH/s";
-    } else {
-        snprintf(hashBuf, sizeof(hashBuf), "%.0f", dev.hashRate);
-        hashUnit = "GH/s";
+        int gaugeR = SS(29), gauger = SS(22);
+        char hashBuf[16]; const char* hashUnit;
+        if (dev.hashRate >= 1000) { snprintf(hashBuf, 16, "%.2f", dev.hashRate/1000.0); hashUnit = "TH/s"; }
+        else                      { snprintf(hashBuf, 16, "%.0f", dev.hashRate);         hashUnit = "GH/s"; }
+        drawArcGauge(SCR_W/4,     SY(88), gaugeR, gauger, dev.hashRate,    0, 1000, "", hashBuf, hashUnit,      CRT_BRIGHT);
+        char tempBuf[16]; snprintf(tempBuf, 16, "%.1f", dev.temperature);
+        drawArcGauge(SCR_W*3/4,   SY(88), gaugeR, gauger, dev.temperature, 0, 80,   "", tempBuf, "C",           tempColor(dev.temperature));
+
+        tft.setTextColor(CRT_MID); tft.setTextSize(1);
+        tft.setCursor(SX(10), SY(121));  tft.printf("IP:%s", dev.ip);
+        tft.setTextColor(CRT_BRIGHT);
+        tft.setCursor(SX(148), SY(121)); tft.printf("CORE:%dmV", dev.coreVoltage);
+        tft.setTextColor(CRT_MID);
+        tft.setCursor(SX(240), SY(121));
+        if (dev.fanRpm > 0) tft.printf("FAN:%d", dev.fanRpm); else tft.printf("RSSI:%d", dev.wifiRSSI);
+
+        int perfY = SY(130), perfH = SY(72);
+        drawPanel(SX(8), perfY, SCR_W - SX(16), perfH, "PERFORMANCE");
+        int barX = SX(80), barW = SCR_W - SX(96), barH = SY(10), rowSpacing = SY(12);
+        int row1Y = SY(144);
+        tft.setTextColor(CRT_DIM); tft.setTextSize(1);
+        tft.setCursor(SX(14), row1Y+2); tft.print("PWR");
+        tft.setTextColor(CRT_MID); tft.setCursor(SX(38), row1Y+2); tft.printf("%.1fW", dev.power);
+        drawHBar(barX, row1Y, barW, barH, dev.power, 30.0, CRT_BRIGHT, NULL);
+        int row2Y = row1Y + rowSpacing;
+        tft.setTextColor(CRT_DIM); tft.setCursor(SX(14), row2Y+2); tft.print("FRQ");
+        tft.setTextColor(CRT_MID); tft.setCursor(SX(38), row2Y+2); tft.printf("%dM", dev.frequency);
+        drawHBar(barX, row2Y, barW, barH, (float)dev.frequency, 1200.0, CRT_BRIGHT, NULL);
+        int row3Y = row2Y + rowSpacing;
+        tft.setTextColor(CRT_DIM); tft.setCursor(SX(14), row3Y+2); tft.print("VIN");
+        tft.setTextColor(CRT_MID); tft.setCursor(SX(38), row3Y+2); tft.printf("%.2fV", dev.voltage);
+        uint16_t vinColor = (dev.voltage < 4.9) ? CRT_RED : CRT_BRIGHT;
+        drawHBar(barX, row3Y, barW, barH, dev.voltage, 5.5, vinColor, NULL);
+        int row4Y = row3Y + rowSpacing;
+        tft.setTextColor(CRT_DIM); tft.setCursor(SX(14), row4Y+2); tft.print("SHR");
+        char sBuf[16]; formatShares(sBuf, sizeof(sBuf), dev.sharesAccepted);
+        tft.setTextColor(CRT_MID); tft.setCursor(SX(38), row4Y+2); tft.print(sBuf);
+        drawHBar(barX, row4Y, barW, barH, (float)dev.sharesAccepted, (float)max(1, dev.sharesAccepted)*1.2f, CRT_BRIGHT, NULL);
     }
-    drawArcGauge(SCR_W / 4, SY(52), gaugeR, gauger, dev.hashRate, 0, 1000,
-                 "HASHRATE", hashBuf, hashUnit, CRT_BRIGHT);
+#else
+    // 320x240: gauges top, stats middle, controls bottom
+    {
+        int gaugeR = SS(26), gauger = SS(20);
+        char hashBuf[16]; const char* hashUnit;
+        if (dev.hashRate >= 1000) { snprintf(hashBuf, 16, "%.2f", dev.hashRate/1000.0); hashUnit = "TH/s"; }
+        else                      { snprintf(hashBuf, 16, "%.0f", dev.hashRate);         hashUnit = "GH/s"; }
+        drawArcGauge(SCR_W/4,   SY(52), gaugeR, gauger, dev.hashRate,    0, 1000, "", hashBuf, hashUnit, CRT_BRIGHT);
+        char tempBuf[16]; snprintf(tempBuf, 16, "%.1f", dev.temperature);
+        drawArcGauge(SCR_W*3/4, SY(52), gaugeR, gauger, dev.temperature, 0, 80,   "", tempBuf, "C",      tempColor(dev.temperature));
 
-    // Temperature arc gauge
-    char tempBuf[16];
-    snprintf(tempBuf, sizeof(tempBuf), "%.1f", dev.temperature);
-    drawArcGauge(SCR_W * 3 / 4, SY(52), gaugeR, gauger, dev.temperature, 0, 80,
-                 "TEMP", tempBuf, "C", tempColor(dev.temperature));
+        tft.setTextColor(CRT_MID); tft.setTextSize(1);
+        tft.setCursor(SX(10), SY(92));  tft.printf("IP:%s", dev.ip);
+        tft.setTextColor(CRT_BRIGHT);
+        tft.setCursor(SX(148), SY(92)); tft.printf("CORE:%dmV", dev.coreVoltage);
+        tft.setTextColor(CRT_MID);
+        tft.setCursor(SX(240), SY(92));
+        if (dev.fanRpm > 0) tft.printf("FAN:%d", dev.fanRpm); else tft.printf("RSSI:%d", dev.wifiRSSI);
 
-    // Info line
-    tft.setTextColor(CRT_MID);
-    tft.setTextSize(1);
-    tft.setCursor(SX(10), SY(92));
-    tft.printf("IP:%s", dev.ip);
-    tft.setTextColor(CRT_BRIGHT);
-    tft.setCursor(SX(148), SY(92));
-    tft.printf("CORE:%dmV", dev.coreVoltage);
-    tft.setTextColor(CRT_MID);
-    tft.setCursor(SX(240), SY(92));
-    if (dev.fanRpm > 0) {
-        tft.printf("FAN:%d", dev.fanRpm);
-    } else {
-        tft.printf("RSSI:%d", dev.wifiRSSI);
+        int perfY = SY(104), perfH = SY(68);
+        drawPanel(SX(8), perfY, SCR_W - SX(16), perfH, "PERFORMANCE");
+        int barX = SX(80), barW = SCR_W - SX(96), barH = SY(10), rowSpacing = SY(12);
+        int row1Y = SY(118);
+        tft.setTextColor(CRT_DIM); tft.setTextSize(1);
+        tft.setCursor(SX(14), row1Y+2); tft.print("PWR");
+        tft.setTextColor(CRT_MID); tft.setCursor(SX(38), row1Y+2); tft.printf("%.1fW", dev.power);
+        drawHBar(barX, row1Y, barW, barH, dev.power, 30.0, CRT_BRIGHT, NULL);
+        int row2Y = row1Y + rowSpacing;
+        tft.setTextColor(CRT_DIM); tft.setCursor(SX(14), row2Y+2); tft.print("FRQ");
+        tft.setTextColor(CRT_MID); tft.setCursor(SX(38), row2Y+2); tft.printf("%dM", dev.frequency);
+        drawHBar(barX, row2Y, barW, barH, (float)dev.frequency, 1200.0, CRT_BRIGHT, NULL);
+        int row3Y = row2Y + rowSpacing;
+        tft.setTextColor(CRT_DIM); tft.setCursor(SX(14), row3Y+2); tft.print("VIN");
+        tft.setTextColor(CRT_MID); tft.setCursor(SX(38), row3Y+2); tft.printf("%.2fV", dev.voltage);
+        uint16_t vinColor = (dev.voltage < 4.9) ? CRT_RED : CRT_BRIGHT;
+        drawHBar(barX, row3Y, barW, barH, dev.voltage, 5.5, vinColor, NULL);
+        int row4Y = row3Y + rowSpacing;
+        tft.setTextColor(CRT_DIM); tft.setCursor(SX(14), row4Y+2); tft.print("SHR");
+        char sBuf[16]; formatShares(sBuf, sizeof(sBuf), dev.sharesAccepted);
+        tft.setTextColor(CRT_MID); tft.setCursor(SX(38), row4Y+2); tft.print(sBuf);
+        drawHBar(barX, row4Y, barW, barH, (float)dev.sharesAccepted, (float)max(1, dev.sharesAccepted)*1.2f, CRT_BRIGHT, NULL);
+
+        drawPanel(SX(6), SY(178), SCR_W - SX(12), SY(38), NULL);
+        drawButton(btnDevRestart,   "RST",  BTN_DANGER);
+        drawButton(btnDevFreqPlus,  "FRQ+", BTN_PRIMARY);
+        drawButton(btnDevFreqMinus, "FRQ-", BTN_PRIMARY);
+        drawButton(btnDevVoltPlus,  "mV+",  BTN_PRIMARY);
+        drawButton(btnDevVoltMinus, "mV-",  BTN_PRIMARY);
+        drawButton(btnDevFanPlus,   "FAN+", BTN_PRIMARY);
     }
-
-    // Performance panel
-    int perfY = SY(104);
-    int perfH = SY(68);
-    drawPanel(SX(8), perfY, SCR_W - SX(16), perfH, "PERFORMANCE");
-    int barX = SX(80);
-    int barW = SCR_W - SX(96);
-    int barH = SY(10);
-    int rowSpacing = SY(12);
-
-    // Power
-    int row1Y = SY(118);
-    tft.setTextColor(CRT_DIM);
-    tft.setTextSize(1);
-    tft.setCursor(SX(14), row1Y + 2);
-    tft.print("PWR");
-    tft.setTextColor(CRT_MID);
-    tft.setCursor(SX(38), row1Y + 2);
-    tft.printf("%.1fW", dev.power);
-    drawHBar(barX, row1Y, barW, barH, dev.power, 30.0, CRT_BRIGHT, NULL);
-
-    // Frequency
-    int row2Y = row1Y + rowSpacing;
-    tft.setTextColor(CRT_DIM);
-    tft.setCursor(SX(14), row2Y + 2);
-    tft.print("FRQ");
-    tft.setTextColor(CRT_MID);
-    tft.setCursor(SX(38), row2Y + 2);
-    tft.printf("%dM", dev.frequency);
-    drawHBar(barX, row2Y, barW, barH, (float)dev.frequency, 1200.0, CRT_BRIGHT, NULL);
-
-    // Input voltage
-    int row3Y = row2Y + rowSpacing;
-    tft.setTextColor(CRT_DIM);
-    tft.setCursor(SX(14), row3Y + 2);
-    tft.print("VIN");
-    tft.setTextColor(CRT_MID);
-    tft.setCursor(SX(38), row3Y + 2);
-    tft.printf("%.2fV", dev.voltage);
-    uint16_t vinColor = (dev.voltage < 4.9) ? CRT_RED : CRT_BRIGHT;
-    drawHBar(barX, row3Y, barW, barH, dev.voltage, 5.5, vinColor, NULL);
-
-    // Shares
-    int row4Y = row3Y + rowSpacing;
-    tft.setTextColor(CRT_DIM);
-    tft.setCursor(SX(14), row4Y + 2);
-    tft.print("SHR");
-    char sBuf[16];
-    formatShares(sBuf, sizeof(sBuf), dev.sharesAccepted);
-    tft.setTextColor(CRT_MID);
-    tft.setCursor(SX(38), row4Y + 2);
-    tft.print(sBuf);
-    drawHBar(barX, row4Y, barW, barH, (float)dev.sharesAccepted, (float)max(1, dev.sharesAccepted) * 1.2f, CRT_BRIGHT, NULL);
-
-    // 6 Control buttons
-    drawButton(btnDevRestart, "RST", BTN_DANGER);
-    drawButton(btnDevFreqPlus, "FRQ+", BTN_PRIMARY);
-    drawButton(btnDevFreqMinus, "FRQ-", BTN_PRIMARY);
-    drawButton(btnDevVoltPlus, "mV+", BTN_PRIMARY);
-    drawButton(btnDevVoltMinus, "mV-", BTN_PRIMARY);
-    drawButton(btnDevFanPlus, "FAN+", BTN_PRIMARY);
+#endif
 
     drawNavBar(2 + devIndex, getTotalScreens());
 }
@@ -1300,56 +1353,34 @@ void updateDeviceScreen(int devIndex) {
 
     if (!dev.valid) return;
 
-    int gaugeR = SS(26);
-    int gauger = SS(20);
-    int gaugeClear = SS(18);
+#if SCR_W >= 480
+    int gaugeR = SS(29), gauger = SS(22), gaugeClear = SS(20);
+    int gaugeCY = SY(88), infoY = SY(121), row1Y = SY(144);
+#else
+    int gaugeR = SS(26), gauger = SS(20), gaugeClear = SS(18);
+    int gaugeCY = SY(52), infoY = SY(92), row1Y = SY(118);
+#endif
 
-    // Clear gauge centers
-    tft.fillCircle(SCR_W / 4, SY(52), gaugeClear, CRT_BG);
-    tft.fillCircle(SCR_W * 3 / 4, SY(52), gaugeClear, CRT_BG);
+    tft.fillCircle(SCR_W / 4,   gaugeCY, gaugeClear, CRT_BG);
+    tft.fillCircle(SCR_W * 3/4, gaugeCY, gaugeClear, CRT_BG);
 
-    // Hashrate gauge
-    char hashBuf[16];
-    const char* hashUnit;
-    if (dev.hashRate >= 1000) {
-        snprintf(hashBuf, sizeof(hashBuf), "%.2f", dev.hashRate / 1000.0);
-        hashUnit = "TH/s";
-    } else {
-        snprintf(hashBuf, sizeof(hashBuf), "%.0f", dev.hashRate);
-        hashUnit = "GH/s";
-    }
-    drawArcGauge(SCR_W / 4, SY(52), gaugeR, gauger, dev.hashRate, 0, 1000,
-                 "HASHRATE", hashBuf, hashUnit, CRT_BRIGHT);
+    char hashBuf[16]; const char* hashUnit;
+    if (dev.hashRate >= 1000) { snprintf(hashBuf, sizeof(hashBuf), "%.2f", dev.hashRate/1000.0); hashUnit = "TH/s"; }
+    else                      { snprintf(hashBuf, sizeof(hashBuf), "%.0f", dev.hashRate);         hashUnit = "GH/s"; }
+    drawArcGauge(SCR_W/4,   gaugeCY, gaugeR, gauger, dev.hashRate,    0, 1000, "", hashBuf, hashUnit, CRT_BRIGHT);
+    char tempBuf[16]; snprintf(tempBuf, sizeof(tempBuf), "%.1f", dev.temperature);
+    drawArcGauge(SCR_W*3/4, gaugeCY, gaugeR, gauger, dev.temperature, 0, 80,   "", tempBuf, "C",      tempColor(dev.temperature));
 
-    // Temperature gauge
-    char tempBuf[16];
-    snprintf(tempBuf, sizeof(tempBuf), "%.1f", dev.temperature);
-    drawArcGauge(SCR_W * 3 / 4, SY(52), gaugeR, gauger, dev.temperature, 0, 80,
-                 "TEMP", tempBuf, "C", tempColor(dev.temperature));
-
-    // Info line
-    tft.fillRect(SX(8), SY(90), SCR_W - SX(16), SY(10), CRT_BG);
-    tft.setTextColor(CRT_MID);
-    tft.setTextSize(1);
-    tft.setCursor(SX(10), SY(92));
-    tft.printf("IP:%s", dev.ip);
+    tft.fillRect(SX(8), infoY - 2, SCR_W - SX(16), SY(10), CRT_BG);
+    tft.setTextColor(CRT_MID); tft.setTextSize(1);
+    tft.setCursor(SX(10), infoY);  tft.printf("IP:%s", dev.ip);
     tft.setTextColor(CRT_BRIGHT);
-    tft.setCursor(SX(148), SY(92));
-    tft.printf("CORE:%dmV", dev.coreVoltage);
+    tft.setCursor(SX(148), infoY); tft.printf("CORE:%dmV", dev.coreVoltage);
     tft.setTextColor(CRT_MID);
-    tft.setCursor(SX(240), SY(92));
-    if (dev.fanRpm > 0) {
-        tft.printf("FAN:%d", dev.fanRpm);
-    } else {
-        tft.printf("RSSI:%d", dev.wifiRSSI);
-    }
+    tft.setCursor(SX(240), infoY);
+    if (dev.fanRpm > 0) tft.printf("FAN:%d", dev.fanRpm); else tft.printf("RSSI:%d", dev.wifiRSSI);
 
-    // Performance bars
-    int barX = SX(80);
-    int barW = SCR_W - SX(96);
-    int barH = SY(10);
-    int rowSpacing = SY(12);
-    int row1Y = SY(118);
+    int barX = SX(80), barW = SCR_W - SX(96), barH = SY(10), rowSpacing = SY(12);
 
     // Power
     tft.fillRect(SX(36), row1Y - 1, SX(40), barH, PANEL_FILL);
@@ -1406,7 +1437,7 @@ void fetchDeviceData(int index) {
 
     if (httpCode == 200) {
         String payload = http.getString();
-        DynamicJsonDocument doc(4096);
+        DynamicJsonDocument doc(8192);
         DeserializationError error = deserializeJson(doc, payload);
 
         if (!error) {
@@ -1488,7 +1519,7 @@ void fetchNetworkDifficulty() {
 
     if (httpCode == 200) {
         String payload = http.getString();
-        DynamicJsonDocument doc(4096);
+        DynamicJsonDocument doc(8192);
         DeserializationError error = deserializeJson(doc, payload);
         if (!error) {
             pool.networkDifficulty = doc["currentDifficulty"].as<double>();
@@ -1567,7 +1598,7 @@ void handleTouch() {
                 // === Screen 1: Pool/Bitcoin page buttons ===
                 if (currentScreen == 1) {
                     if (checkButtonPress(btnNextCoin, touchStartX, touchStartY)) {
-                        drawTouchRipple(touchStartX, touchStartY);
+                        flashButton(btnNextCoin, "NEXT>", BTN_GHOST);
                         selectedCoin = (selectedCoin + 1) % COIN_COUNT;
                         prefs.putInt("coin", selectedCoin);
                         pool.btcPrice = 0;
@@ -1595,7 +1626,7 @@ void handleTouch() {
                         if (checkButtonPress(btnDevRestart, touchStartX, touchStartY)) {
                             unsigned long now = millis();
                             if (restartConfirmPending && restartTapDevice == devIndex && (now - lastRestartTap < 2000)) {
-                                drawTouchRipple(touchStartX, touchStartY);
+                                flashButton(btnDevRestart, "RST", BTN_DANGER);
                                 postDeviceRestart(devIndex);
                                 restartConfirmPending = false;
                                 restartTapDevice = -1;
@@ -1615,7 +1646,7 @@ void handleTouch() {
                         // FRQ+
                         if (checkButtonPress(btnDevFreqPlus, touchStartX, touchStartY)) {
                             int newFreq = devices[devIndex].frequency + 25;
-                            drawTouchRipple(touchStartX, touchStartY);
+                            flashButton(btnDevFreqPlus, "FRQ+", BTN_PRIMARY);
                             char body[32];
                             snprintf(body, sizeof(body), "{\"frequency\":%d}", newFreq);
                             postDeviceSetting(devIndex, body);
@@ -1623,7 +1654,7 @@ void handleTouch() {
                         // FRQ-
                         if (checkButtonPress(btnDevFreqMinus, touchStartX, touchStartY)) {
                             int newFreq = max(100, devices[devIndex].frequency - 25);
-                            drawTouchRipple(touchStartX, touchStartY);
+                            flashButton(btnDevFreqMinus, "FRQ-", BTN_PRIMARY);
                             char body[32];
                             snprintf(body, sizeof(body), "{\"frequency\":%d}", newFreq);
                             postDeviceSetting(devIndex, body);
@@ -1631,7 +1662,7 @@ void handleTouch() {
                         // mV+
                         if (checkButtonPress(btnDevVoltPlus, touchStartX, touchStartY)) {
                             int newVolt = min(1400, devices[devIndex].coreVoltage + 25);
-                            drawTouchRipple(touchStartX, touchStartY);
+                            flashButton(btnDevVoltPlus, "mV+", BTN_PRIMARY);
                             char body[32];
                             snprintf(body, sizeof(body), "{\"coreVoltage\":%d}", newVolt);
                             postDeviceSetting(devIndex, body);
@@ -1639,7 +1670,7 @@ void handleTouch() {
                         // mV-
                         if (checkButtonPress(btnDevVoltMinus, touchStartX, touchStartY)) {
                             int newVolt = max(1000, devices[devIndex].coreVoltage - 25);
-                            drawTouchRipple(touchStartX, touchStartY);
+                            flashButton(btnDevVoltMinus, "mV-", BTN_PRIMARY);
                             char body[32];
                             snprintf(body, sizeof(body), "{\"coreVoltage\":%d}", newVolt);
                             postDeviceSetting(devIndex, body);
@@ -1647,7 +1678,7 @@ void handleTouch() {
                         // FAN+
                         if (checkButtonPress(btnDevFanPlus, touchStartX, touchStartY)) {
                             int newFan = min(100, devices[devIndex].fanSpeed + 5);
-                            drawTouchRipple(touchStartX, touchStartY);
+                            flashButton(btnDevFanPlus, "FAN+", BTN_PRIMARY);
                             char body[32];
                             snprintf(body, sizeof(body), "{\"fanspeed\":%d}", newFan);
                             postDeviceSetting(devIndex, body);
@@ -1720,23 +1751,115 @@ void updateLed(unsigned long now) {
 // ===== BUTTON AREAS (scaled from 320x240 design) =====
 
 // Pool page
+#if SCR_W >= 480
+ButtonArea btnNextCoin  = {SX(268), SY(44), SX(42), SY(28)};  // right of price panel, vertically centred
+#else
 ButtonArea btnNextCoin  = {SX(268), SY(36), SX(42), SY(18)};
-ButtonArea btnRateMinus = {SX(270), SY(170), SX(20), SY(14)};
-ButtonArea btnRatePlus  = {SX(294), SY(170), SX(20), SY(14)};
+#endif
+ButtonArea btnRateMinus = {SX(256), SY(170), SX(18), SY(14)};
+ButtonArea btnRatePlus  = {SX(278), SY(170), SX(18), SY(14)};
 
-// Device screen (6 buttons across)
+// Device screen: 480x320 controls at top row; 320x240 controls at bottom
+#if SCR_W >= 480
+ButtonArea btnDevRestart   = {SX(5),   SY(36), SX(48), SY(22)};
+ButtonArea btnDevFreqPlus  = {SX(57),  SY(36), SX(48), SY(22)};
+ButtonArea btnDevFreqMinus = {SX(109), SY(36), SX(48), SY(22)};
+ButtonArea btnDevVoltPlus  = {SX(161), SY(36), SX(48), SY(22)};
+ButtonArea btnDevVoltMinus = {SX(213), SY(36), SX(48), SY(22)};
+ButtonArea btnDevFanPlus   = {SX(265), SY(36), SX(48), SY(22)};
+#else
 ButtonArea btnDevRestart   = {SX(8),   SY(186), SX(48), SY(22)};
 ButtonArea btnDevFreqPlus  = {SX(60),  SY(186), SX(48), SY(22)};
 ButtonArea btnDevFreqMinus = {SX(112), SY(186), SX(48), SY(22)};
 ButtonArea btnDevVoltPlus  = {SX(164), SY(186), SX(48), SY(22)};
 ButtonArea btnDevVoltMinus = {SX(216), SY(186), SX(48), SY(22)};
 ButtonArea btnDevFanPlus   = {SX(268), SY(186), SX(48), SY(22)};
+#endif
 
 bool checkButtonPress(ButtonArea &btn, int x, int y) {
-    return (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h);
+    const int pad = 8;
+    return (x >= btn.x - pad && x <= btn.x + btn.w + pad &&
+            y >= btn.y - pad && y <= btn.y + btn.h + pad);
 }
 
 // ===== SETUP & LOOP =====
+
+void setupWebServer() {
+    // Settings page
+    webServer.on("/", HTTP_GET, []() {
+        String ips = prefs.getString("ips", "");
+        // Convert commas to newlines for the textarea
+        ips.replace(",", "\n");
+        String page = F(
+            "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            "<title>BitAxe Monitor</title>"
+            "<style>"
+            "*{box-sizing:border-box}"
+            "body{background:#000;color:#FFB000;font-family:'Courier New',monospace;padding:20px;max-width:600px;margin:0 auto}"
+            "h1{color:#FFB000;text-shadow:0 0 10px #FFB000;letter-spacing:3px;border-bottom:1px solid #614000;padding-bottom:10px}"
+            "label{display:block;margin:15px 0 5px;color:#A36000;text-transform:uppercase;font-size:12px}"
+            "textarea{background:#000020;color:#FFB000;border:2px solid #A36000;padding:8px;font-family:'Courier New',monospace;width:100%}"
+            "textarea:focus{border-color:#FFB000;outline:none}"
+            "button{background:#000020;color:#FFB000;border:2px solid #FFB000;padding:10px 20px;"
+            "font-family:'Courier New',monospace;text-transform:uppercase;cursor:pointer;margin:4px 4px 4px 0}"
+            "button:hover{background:#FFB000;color:#000}"
+            ".warn{border-color:#FF4000;color:#FF4000}.warn:hover{background:#FF4000;color:#000}"
+            ".note{color:#614000;font-size:11px;margin:6px 0 15px}"
+            "hr{border:none;border-top:1px solid #614000;margin:20px 0}"
+            "</style></head><body>"
+            "<h1>&#9889; BITAXE MONITOR</h1>"
+            "<form method='POST' action='/save'>"
+            "<label>BitAxe IP Addresses</label>"
+            "<textarea name='ips' rows='6' placeholder='192.168.1.50&#10;192.168.1.51'>{{IPS}}</textarea>"
+            "<div class='note'>One IP per line or comma-separated</div>"
+            "<button type='submit'>[ SAVE &amp; REBOOT ]</button>"
+            "</form><hr>"
+            "<button class='warn' onclick=\"if(confirm('Clear WiFi and restart into setup mode?'))location='/reset-wifi'\">[ RESET WIFI ]</button>"
+            "<hr><div class='note'>&#9670; http://bitaxe.local &nbsp;&bull;&nbsp; IP: {{IP}}</div>"
+            "</body></html>"
+        );
+        page.replace("{{IPS}}", ips);
+        page.replace("{{IP}}", WiFi.localIP().toString());
+        webServer.send(200, "text/html", page);
+    });
+
+    // Save IPs and reboot
+    webServer.on("/save", HTTP_POST, []() {
+        if (webServer.hasArg("ips")) {
+            String ips = webServer.arg("ips");
+            ips.trim();
+            ips.replace("\r\n", ",");
+            ips.replace("\n", ",");
+            ips.replace(" ", "");
+            while (ips.endsWith(",")) ips.remove(ips.length() - 1);
+            prefs.putString("ips", ips);
+        }
+        webServer.send(200, "text/html",
+            "<html><body style='background:#000;color:#FFB000;font-family:monospace;padding:20px'>"
+            "<h1>&#10003; SAVED</h1><p>Rebooting in 2 seconds...</p></body></html>");
+        delay(2000);
+        ESP.restart();
+    });
+
+    // Reset WiFi credentials and reboot into portal
+    webServer.on("/reset-wifi", HTTP_GET, []() {
+        webServer.send(200, "text/html",
+            "<html><body style='background:#000;color:#FFB000;font-family:monospace;padding:20px'>"
+            "<h1>WIFI RESET</h1><p>Rebooting into setup mode...</p></body></html>");
+        delay(2000);
+        WiFiManager wm;
+        wm.resetSettings();
+        ESP.restart();
+    });
+
+    webServer.onNotFound([]() {
+        webServer.sendHeader("Location", "/");
+        webServer.send(302);
+    });
+
+    webServer.begin();
+}
 
 void setup() {
     Serial.begin(115200);
@@ -1832,6 +1955,13 @@ void setup() {
         parseDeviceIPs(ipListBuf);
     }
 
+    // Start mDNS — accessible at http://bitaxe.local
+    if (MDNS.begin("bitaxe")) {
+        MDNS.addService("http", "tcp", 80);
+        Serial.println("mDNS: http://bitaxe.local");
+    }
+    setupWebServer();
+
     Serial.printf("Free heap after WiFiManager: %d bytes\n", ESP.getFreeHeap());
     Serial.println("WiFi connected: " + WiFi.localIP().toString());
     Serial.printf("Device count: %d\n", deviceCount);
@@ -1856,6 +1986,7 @@ void setup() {
 
 void loop() {
     unsigned long now = millis();
+    webServer.handleClient();
     handleTouch();
     updateLed(now);
 
