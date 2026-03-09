@@ -1816,6 +1816,7 @@ void setupWebServer() {
             "<button type='submit'>[ SAVE &amp; REBOOT ]</button>"
             "</form><hr>"
             "<button class='warn' onclick=\"if(confirm('Clear WiFi and restart into setup mode?'))location='/reset-wifi'\">[ RESET WIFI ]</button>"
+            "<button class='warn' onclick=\"if(confirm('Run touch calibration? Device will reboot.'))location='/recalibrate'\">[ RECAL TOUCH ]</button>"
             "<hr><div class='note'>&#9670; http://bitaxe.local &nbsp;&bull;&nbsp; IP: {{IP}}</div>"
             "</body></html>"
         );
@@ -1850,6 +1851,23 @@ void setupWebServer() {
         delay(2000);
         WiFiManager wm;
         wm.resetSettings();
+        ESP.restart();
+    });
+
+    // Clear touch calibration data and reboot — calibration will run on next boot
+    webServer.on("/recalibrate", HTTP_GET, []() {
+        prefs.remove("touchCal");    // TOUCH_RESISTIVE
+        prefs.remove("touchXmin");   // TOUCH_XPT2046_VSPI
+        prefs.remove("touchXmax");
+        prefs.remove("touchYmin");
+        prefs.remove("touchYmax");
+        webServer.send(200, "text/html",
+            "<html><body style='background:#000;color:#FFB000;font-family:monospace;padding:20px'>"
+            "<h1>&#9870; RECALIBRATION</h1>"
+            "<p>Touch calibration data cleared.</p>"
+            "<p>Rebooting — tap the crosshairs when prompted...</p>"
+            "</body></html>");
+        delay(2000);
         ESP.restart();
     });
 
@@ -1969,9 +1987,10 @@ void setup() {
         Serial.printf("  Device %d: %s\n", i, devices[i].ip);
     }
 
-    // Initialize touch
+    // Initialize touch — run calibration on first boot if resistive
     delay(200);
     touch.begin();
+    touch.runCalibrationIfNeeded(prefs);
 
     // Initial data fetch - all devices
     for (int i = 0; i < deviceCount; i++) {
